@@ -21,6 +21,7 @@ impl SGString {
     pub fn to_str(&self) -> String {
         // Safe to unwrap because the data came from a String
         let result = String::from_utf8(self.data.clone()).unwrap();
+        result
     }
 }
 

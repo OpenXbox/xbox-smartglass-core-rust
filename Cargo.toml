@@ -5,3 +5,6 @@ authors = ["Kern <kern.walster@gmail.com>"]
 
 [dependencies]
 rustc-serialize = "0.3.24"
+ring = "0.11.0"
+untrusted = "0.5.0"
+rust-crypto = "0.2.36"
