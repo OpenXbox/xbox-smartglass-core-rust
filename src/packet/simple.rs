@@ -1,6 +1,6 @@
 use ::util::{SGString};
 
-struct Header {
+pub struct Header {
     pkt_type: u16,
     unprotected_payload_length: u32,
     protected_payload_length: u32, // This is only sometimes here!
@@ -14,17 +14,18 @@ struct Header {
 // ) / StructObj
 
 
-struct DiscoveryRequest {
+pub struct DiscoveryRequest {
     unk: u16,
     clientType: u32,
     flags: u32
 }
 
-struct DiscoveryResponse {
+pub struct DiscoveryResponse {
     flags: u32,
     clientType: u16,
     name: SGString,
-    uuid: [u8;16], // is this even right?
+    uuid: SGString,
+
 
 }
 

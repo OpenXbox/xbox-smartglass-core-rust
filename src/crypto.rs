@@ -9,7 +9,7 @@ use self::untrusted::Input;
 use self::crypto::aes;
 use self::crypto::aes::KeySize;
 use self::crypto::blockmodes;
-use self::crypto::buffer::{RefReadBuffer, RefWriteBuffer, WriteBuffer, ReadBuffer, BufferResult};
+use self::crypto::buffer::{RefReadBuffer, RefWriteBuffer};
 
 /// A class for adding salts to data before encryption
 enum Salt {
@@ -22,7 +22,7 @@ impl Salt {
     ///
     /// # Arguments
     /// * `data` - The data to be salted
-    fn apply(&self, data: &Vec<u8>) -> Vec<u8> {
+    pub fn apply(&self, data: &Vec<u8>) -> Vec<u8> {
         match *self {
             Salt::Prepend(ref salt) => [&salt[..], &data[..]].concat(),
             Salt::Append(ref salt) => [&data[..], &salt[..]].concat()
@@ -31,12 +31,11 @@ impl Salt {
 }
 
 /// The particular crypto ipmlementation used by SmartGlass
-struct Crypto {
-    salts: [Salt; 2],
-    publicKey: Vec<u8>,
-    aesKey: [u8;16],
-    ivKey: [u8;16],
-    hmacKey: [u8;32]
+pub struct Crypto {
+    public_key: Vec<u8>,
+    aes_key: [u8;16],
+    iv_key: [u8;16],
+    hmac_key: [u8;32]
 }
 
 impl Crypto {
@@ -44,48 +43,49 @@ impl Crypto {
     ///
     /// # Arguments
     /// * foreignPublicKey - The public key of the xbox one associated with the SG Session
-    pub fn new(foreignPublicKey: &[u8]) -> Crypto {
+    pub fn new(foreign_public_key: &[u8]) -> Crypto {
         let rng = rand::SystemRandom::new();
         // TODO: error handling
-        Crypto::from_rand(foreignPublicKey, rng)
+        Crypto::from_rand(foreign_public_key, rng)
     }
 
-    fn from_rand<T>(foreignPublicKey: &[u8], rng: T) -> Crypto
+    fn from_rand<T>(foreign_public_key: &[u8], rng: T) -> Crypto
         where T: rand::SecureRandom {
          // Safe to unwrap here because the string is static and known to be valid
         //  text. We should never recieve anthing but Ok(val)
-        let prependSalt = Salt::Prepend("D637F1AAE2F0418C".from_hex().unwrap());
-        let appendSalt = Salt::Append("A8F81A574E228AB7".from_hex().unwrap());
-        let salts = [prependSalt, appendSalt];
+        let prepend_salt = Salt::Prepend("D637F1AAE2F0418C".from_hex().unwrap());
+        let append_salt = Salt::Append("A8F81A574E228AB7".from_hex().unwrap());
+        let salts = [prepend_salt, append_salt];
 
-        let untrustedForiegnKey = Input::from(foreignPublicKey);
-        let privateKey = agreement::EphemeralPrivateKey::generate(&agreement::ECDH_P256, &rng).unwrap();
-        let mut publicKey = [0u8; agreement::PUBLIC_KEY_MAX_LEN];
-        let publicKey = &mut publicKey[..privateKey.public_key_len()];
+        let untrusted_foreign_key = Input::from(foreign_public_key);
+        let private_key = agreement::EphemeralPrivateKey::generate(&agreement::ECDH_P256, &rng).unwrap();
+        let mut public_key = [0u8; agreement::PUBLIC_KEY_MAX_LEN];
+        let public_key = &mut public_key[..private_key.public_key_len()];
         // TODO: error handling
-        privateKey.compute_public_key(publicKey);
+        private_key.compute_public_key(public_key);
         
-        let derivedKey = agreement::agree_ephemeral(privateKey, &agreement::ECDH_P256, 
-        untrustedForiegnKey, ring::error::Unspecified,
-        |secret| {
+        let kdf =  |secret: &[u8]| {
             // TODO: error handling
-            let saltedSecret = secret.to_vec();
+            let salted_secret = secret.to_vec();
             for salt in salts.iter() {
-                let saltedSecret = salt.apply(&saltedSecret);
+                let salted_secret = salt.apply(&salted_secret);
             }
-            let derivedKey = digest::digest(&digest::SHA512, &saltedSecret[..]);
-            Ok((*derivedKey.as_ref()).to_vec())
-        }).unwrap();
+            let derived_key = digest::digest(&digest::SHA512, &salted_secret[..]);
+            Ok((*derived_key.as_ref()).to_vec())
+        };
 
-        let mut aesKey = [0u8; 16];
-        let mut ivKey = [0u8; 16];
-        let mut hmacKey = [0u8; 32];
-        &aesKey.clone_from_slice(&derivedKey[0..16]);
-        &ivKey.clone_from_slice(&derivedKey[16..32]);
-        &hmacKey.clone_from_slice(&derivedKey[32..64]);
+        let derived_key = agreement::agree_ephemeral(private_key, &agreement::ECDH_P256, 
+            untrusted_foreign_key, ring::error::Unspecified, kdf).unwrap();
+
+        let mut aes_key = [0u8; 16];
+        let mut iv_key = [0u8; 16];
+        let mut hmac_key = [0u8; 32];
+        &aes_key.clone_from_slice(&derived_key[0..16]);
+        &iv_key.clone_from_slice(&derived_key[16..32]);
+        &hmac_key.clone_from_slice(&derived_key[32..64]);
 
         
-        Crypto{salts, publicKey: publicKey.to_vec(), aesKey, ivKey, hmacKey}
+        Crypto{public_key: public_key.to_vec(), aes_key, iv_key, hmac_key}
     }
 
     /// Calculates the number of bytes needed to hold the input after padding is applied
@@ -100,10 +100,10 @@ impl Crypto {
     /// * plaintext - the plaintext to be encrypted
     /// * ciphertext - the result of the encryption (use Crypto::aligned_len(plaintext) to determine the size this slice must be)
     pub fn encrypt(&self, iv: &[u8], plaintext: &[u8], ciphertext: &mut [u8]) {
-        let mut readBuf = RefReadBuffer::new(plaintext);
-        let mut writeBuf = RefWriteBuffer::new(ciphertext);
-        let mut encryptor = aes::cbc_encryptor(KeySize::KeySize128, &self.aesKey, iv, blockmodes::PkcsPadding);
-        encryptor.encrypt(&mut readBuf, &mut writeBuf, true);
+        let mut read_buf = RefReadBuffer::new(plaintext);
+        let mut write_buf = RefWriteBuffer::new(ciphertext);
+        let mut encryptor = aes::cbc_encryptor(KeySize::KeySize128, &self.aes_key, iv, blockmodes::PkcsPadding);
+        encryptor.encrypt(&mut read_buf, &mut write_buf, true);
     }
 
     /// Decrypts a ciphertext into a plaintext
@@ -113,10 +113,10 @@ impl Crypto {
     /// * ciphertext - the ciphertext to be decrypted
     /// * plaintext - the result of the decryption (length is awkward here, will need to fix) 
     pub fn decrypt(&self, iv: &[u8], ciphertext: &[u8], plaintext: &mut [u8]) {
-        let mut readBuf = RefReadBuffer::new(ciphertext);
-        let mut writeBuf = RefWriteBuffer::new(plaintext);
-        let mut decryptor = aes::cbc_decryptor(KeySize::KeySize128, &self.aesKey, iv, blockmodes::PkcsPadding);
-        decryptor.decrypt(&mut readBuf, &mut writeBuf, true);
+        let mut read_buf = RefReadBuffer::new(ciphertext);
+        let mut write_buf = RefWriteBuffer::new(plaintext);
+        let mut decryptor = aes::cbc_decryptor(KeySize::KeySize128, &self.aes_key, iv, blockmodes::PkcsPadding);
+        decryptor.decrypt(&mut read_buf, &mut write_buf, true);
     }
 
     /// Creates a signature for a slice
@@ -125,7 +125,7 @@ impl Crypto {
     /// * data - the data to be signed
     /// * signature - the rusult of the signature (must be exactly 32 bytes)
     pub fn sign(&self, data: &[u8], signature: &mut [u8]) {
-        let key = hmac::SigningKey::new(&digest::SHA256, &self.hmacKey[..]);
+        let key = hmac::SigningKey::new(&digest::SHA256, &self.hmac_key[..]);
         let hash = hmac::sign(&key, data);
         signature.clone_from_slice(hash.as_ref());
     }
@@ -135,7 +135,7 @@ impl Crypto {
     /// * data - the data that was signed
     /// * signature - the signature of the data
     pub fn verify(&self, data: &[u8], signature: &[u8]) -> bool {
-        let key = hmac::VerificationKey::new(&digest::SHA256, &self.hmacKey[..]);
+        let key = hmac::VerificationKey::new(&digest::SHA256, &self.hmac_key[..]);
         let verification = hmac::verify(&key, data, signature);
         match verification {
             Ok(_) => true,
