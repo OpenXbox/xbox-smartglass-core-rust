@@ -1,7 +1,9 @@
 pub mod simple;
 
+use ::serialize::{Serialize};
+
 #[repr(u16)]
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
 pub enum Type {
     ConnectRequest = 0xCC00,
     ConnectResponse = 0xCC01,
@@ -31,6 +33,16 @@ impl Type {
             Type::ConnectResponse => true,
             _ => false
         }
+    }
+}
+
+impl Serialize for Type {
+    fn size(&self) -> usize {
+        2
+    }
+
+    fn serialize(&self, output: &mut [u8]) {
+        (*self as u16).serialize(output);
     }
 }
 

@@ -1,12 +1,12 @@
 extern crate nom;
 
 use self::nom::*;
+use ::serialize::*;
 
 /// A representation of the weird serialization format of strings in SG packets
 /// NOTE: this will not work with serde
 #[derive(Debug,PartialEq,Eq,Clone)]
 pub struct SGString {
-    len: u16,
     data: Vec<u8>,
     terminator: u8,
 }
@@ -15,7 +15,7 @@ impl SGString {
     /// Creates an `SGString` from a rust `String`
     pub fn from_str(string: String) -> SGString {
         SGString {
-            len: string.len() as u16,
+            //len: string.len() as u16,
             data: string.into_bytes(),
             terminator: 0
         }
@@ -39,6 +39,13 @@ impl SGString {
             )
         )
     }
+}
+
+impl Serialize for SGString {
+    impl_serialize!(
+        data,
+        terminator
+    );
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
@@ -74,7 +81,7 @@ mod test {
     fn encode_works() {
         let string = String::from("Testing");
         let sgstring = SGString::from_str(string);
-        assert_eq!(7, sgstring.len)
+        assert_eq!(7, sgstring.data.len())
     }
 
     #[test]
@@ -94,5 +101,15 @@ mod test {
             }
             _ => assert!(false)
         }
+    }
+
+    #[test]
+    fn serialize_works() {
+        let serialized = b"\x00\x04test\x00";
+        let sgstring = SGString::from_str(String::from("test"));
+        let size = sgstring.size();
+        let mut vec = vec![0; size];
+        sgstring.serialize(&mut vec[..]);
+        assert_eq!(serialized, &vec[..])
     }
 }

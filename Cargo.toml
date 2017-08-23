@@ -1,5 +1,5 @@
 [package]
-name = "xbone-smartglass"
+name = "xbox-sg"
 version = "0.1.0"
 authors = ["Kern <kern.walster@gmail.com>"]
 
