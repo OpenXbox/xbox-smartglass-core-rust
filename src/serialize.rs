@@ -1,6 +1,22 @@
+
+/// A serialization implementation
+///
+/// # Example
+/// ```
+/// // using serialize
+/// let size = some_struct.size();
+/// let mut buf = vec!(0;size);
+/// some_struct.serialize(&mut buf[..]);
+/// ```
 pub trait Serialize {
+    /// Returns the number of bytes needed to serialize the struct
     fn size(&self) -> usize;
-    fn serialize(&self, &mut[u8]);
+
+    /// Serializes the structs
+    ///
+    /// # Arguments
+    /// * `output` the slice into which the struct should be serialized
+    fn serialize(&self, output: &mut[u8]);
 }
 
 
@@ -57,6 +73,22 @@ impl <T> Serialize for [T]
         }
     }
 
+/// Semi-automatically generates an implementation of `Serialize`
+///
+/// Generates a Serialize implementation when provided with
+///  a series of property names where each property is itself `Serialize`
+///
+/// # Example
+/// ```
+/// struct Person {
+///     name: String,
+///     age: uint
+/// }
+///
+/// impl Serialize for Person {
+///     impl_serialize!(name, age);
+/// }
+/// ```
 macro_rules! impl_serialize {
     ( $( $x:ident ),* ) => {
         fn size(&self) -> usize {
