@@ -1,13 +1,17 @@
 extern crate nom;
+extern crate protocol;
+
+use std::io::{Read, Write};
 
 use self::nom::*;
+use self::protocol::{Parcel, DynArray, Error};
 use ::serialize::*;
 
 /// A representation of the weird serialization format of strings in SG packets
 /// NOTE: this will not work with serde
 #[derive(Debug,PartialEq,Eq,Clone)]
 pub struct SGString {
-    data: Vec<u8>,
+    data: Vec<u8>, // make this a DynArray straight away?
     terminator: u8,
 }
 
@@ -19,7 +23,7 @@ impl SGString {
             data: string.into_bytes(),
             terminator: 0
         }
-        
+
     }
 
     /// Creates a rust `String` from an `SGString`
@@ -28,48 +32,59 @@ impl SGString {
         let result = String::from_utf8(self.data.clone()).unwrap();
         result
     }
-
-    pub fn parse(input: &[u8]) -> IResult<&[u8], SGString> {
-        do_parse!(input,
-            len: be_u16 >>
-            val: map_res!(take!(len), |data: &[u8]| String::from_utf8(data.to_vec())) >>
-            tag!(&[0][..]) >>
-            (
-                SGString::from_str(val)
-            )
-        )
-    }
 }
 
-impl Serialize for SGString {
-    impl_serialize!(
-        data,
-        terminator
-    );
+impl Parcel for SGString {
+    fn read(read: &mut Read) -> Result<Self, Error> {
+        let data = DynArray::<i16, u8>::read(read)?;
+        let term = u8::read(read)?;
+
+        // Error here if the terminator isn't 0
+
+        let sgstring = SGString::from_str(
+            String::from_utf8(data.elements)?
+        );
+
+        Ok(sgstring)
+    }
+
+    fn write(&self, write: &mut Write) -> Result<(), Error> {
+        let data = DynArray::<i16, u8>::new(self.data.clone());
+        data.write(write);
+        self.terminator.write(write);
+
+        Ok(())
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct UUID {
-    len: u16,
+    len: i16,
     value: String
 }
 
 impl UUID {
     pub fn from_string(string: String) -> UUID {
         UUID {
-            len: string.len() as u16,
+            len: string.len() as i16,
             value: string
         }
     }
+}
 
-    pub fn parse(input: &[u8]) -> IResult<&[u8], UUID> {
-        do_parse!(input,
-            len: be_u16 >>
-            value: map_res!(take!(len), |data: &[u8]| String::from_utf8(data.to_vec())) >>
-            (
-                UUID { len, value }
-            )
-        )
+impl Parcel for UUID {
+    fn read(read: &mut Read) -> Result<Self, Error> {
+        let data = DynArray::<i16, u8>::read(read)?;
+        Ok(UUID {
+            len: data.elements.len() as i16,
+            value: String::from_utf8(data.elements)?
+        })
+    }
+
+    fn write(&self, write: &mut Write) -> Result<(), Error> {
+        let data = DynArray::<i16, u8>::new(self.value.clone().into_bytes());
+        data.write(write);
+        Ok(())
     }
 }
 
@@ -93,12 +108,12 @@ mod test {
 
     #[test]
     fn parse_works() {
-        let parsed = SGString::parse(b"\x00\x04test\x00");
-        match parsed {
-            IResult::Done(remaining, sgstring) => {
-                assert_eq!(sgstring, SGString::from_str(String::from("test")));
-                assert_eq!(remaining.len(), 0);
-            }
+        let result = SGString::from_raw_bytes(b"\x00\x04test\x00");
+
+        match result {
+            Ok(parsed) => {
+                assert_eq!(parsed, SGString::from_str(String::from("test")));
+            },
             _ => assert!(false)
         }
     }
@@ -107,9 +122,7 @@ mod test {
     fn serialize_works() {
         let serialized = b"\x00\x04test\x00";
         let sgstring = SGString::from_str(String::from("test"));
-        let size = sgstring.size();
-        let mut vec = vec![0; size];
-        sgstring.serialize(&mut vec[..]);
-        assert_eq!(serialized, &vec[..])
+
+        assert_eq!(serialized, sgstring.raw_bytes().unwrap().as_slice());
     }
 }

@@ -1,6 +1,11 @@
+extern crate protocol;
+
 pub mod simple;
 
+use std::io::{Read, Write};
+
 use ::serialize::{Serialize};
+use self::protocol::*;
 
 #[repr(u16)]
 #[derive(Debug, PartialEq, Eq, Copy, Clone)]
@@ -36,13 +41,15 @@ impl Type {
     }
 }
 
-impl Serialize for Type {
-    fn size(&self) -> usize {
-        2
+impl Parcel for Type {
+    fn read(read: &mut Read) -> Result<Self, Error> {
+        Ok(Type::from_u16(u16::read(read).unwrap()).unwrap())
     }
 
-    fn serialize(&self, output: &mut [u8]) {
-        (*self as u16).serialize(output);
+    fn write(&self, write: &mut Write) -> Result<(), Error> {
+        (*self as u16).write(write);
+
+        Ok(())
     }
 }
 
