@@ -59,14 +59,14 @@ impl Parcel for SGString {
 
 #[derive(Debug, PartialEq, Eq, Clone)]
 pub struct UUID {
-    len: i16,
+    len: u16,
     value: String
 }
 
 impl UUID {
     pub fn from_string(string: String) -> UUID {
         UUID {
-            len: string.len() as i16,
+            len: string.len() as u16,
             value: string
         }
     }
@@ -76,7 +76,7 @@ impl Parcel for UUID {
     fn read(read: &mut Read) -> Result<Self, Error> {
         let data = DynArray::<i16, u8>::read(read)?;
         Ok(UUID {
-            len: data.elements.len() as i16,
+            len: data.elements.len() as u16,
             value: String::from_utf8(data.elements)?
         })
     }

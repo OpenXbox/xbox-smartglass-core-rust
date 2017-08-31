@@ -90,9 +90,9 @@ impl Parcel for Header {
             packet::Type::DiscoveryResponse |
             packet::Type::PowerOnRequest => Header::Simple(SimpleHeader {
                 pkt_type: pkt_type,
-                unprotected_payload_length: i16::read(read)?,
-                protected_payload_length: if pkt_type.has_protected_data() { i16::read(read)? } else { 0 },
-                version: i16::read(read)?
+                unprotected_payload_length: u16::read(read)?,
+                protected_payload_length: if pkt_type.has_protected_data() { u16::read(read)? } else { 0 },
+                version: u16::read(read)?
             }),
             packet::Type::Message => Header::Message(MessageHeader {
                 pkt_type
@@ -124,13 +124,13 @@ impl Parcel for Header {
 #[derive(Debug)]
 pub struct SimpleHeader {
     pub pkt_type: packet::Type,
-    pub unprotected_payload_length: i16,
-    pub protected_payload_length: i16, // This is only sometimes here!
-    pub version: i16
+    pub unprotected_payload_length: u16,
+    pub protected_payload_length: u16, // This is only sometimes here!
+    pub version: u16
 }
 
 impl SimpleHeader {
-    fn new(pkt_type: packet::Type, version: i16) -> Result<Self, Error> {
+    fn new(pkt_type: packet::Type, version: u16) -> Result<Self, Error> {
         Ok(SimpleHeader {
             pkt_type: pkt_type,
             unprotected_payload_length: 0,
@@ -146,9 +146,9 @@ impl Parcel for SimpleHeader {
 
         Ok(SimpleHeader {
             pkt_type: pkt_type,
-            unprotected_payload_length: i16::read(read)?,
-            protected_payload_length: if pkt_type.has_protected_data() { i16::read(read)? } else { 0 },
-            version: i16::read(read)?
+            unprotected_payload_length: u16::read(read)?,
+            protected_payload_length: if pkt_type.has_protected_data() { u16::read(read)? } else { 0 },
+            version: u16::read(read)?
         })
     }
 
@@ -172,9 +172,9 @@ pub struct MessageHeader {
 
 // Data definitions. The define_packet macro implements Parcel for us on structs.
 define_packet!(DiscoveryRequestData {
-    unk: i16,
-    client_type: i32,
-    flags: i32
+    unk: u16,
+    client_type: u32,
+    flags: u32
 });
 
 define_packet!(DiscoveryResponseData {
