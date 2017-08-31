@@ -10,8 +10,11 @@ use self::protocol::*;
 
 #[derive(Debug)]
 enum Packet {
+    PowerOnRequest(SimpleHeader, PowerOnRequestData),
     DiscoveryRequest(SimpleHeader, DiscoveryRequestData),
     DiscoveryResponse(SimpleHeader, DiscoveryResponseData),
+    ConnectRequest(SimpleHeader, ConnectRequestUnprotectedData),
+    ConnectResponse(SimpleHeader, ConnectResponseUnprotectedData),
     Message
 }
 
@@ -30,6 +33,12 @@ impl Parcel for Packet {
 
         let packet = match header {
             Header::Simple(header) => match header.pkt_type {
+                packet::Type::PowerOnRequest => {
+                    Packet::PowerOnRequest(
+                        header,
+                        PowerOnRequestData::read(read)?
+                    )
+                },
                 packet::Type::DiscoveryRequest => {
                     Packet::DiscoveryRequest(
                         header,
@@ -40,6 +49,20 @@ impl Parcel for Packet {
                     Packet::DiscoveryResponse(
                         header,
                         DiscoveryResponseData::read(read)?
+                    )
+                },
+                packet::Type::ConnectRequest => {
+                    Packet::ConnectRequest(
+                        header,
+                        ConnectRequestUnprotectedData::read(read)?
+                        // todo: crypto
+                    )
+                },
+                packet::Type::ConnectResponse => {
+                    Packet::ConnectResponse(
+                        header,
+                        ConnectResponseUnprotectedData::read(read)?
+                        // todo: crypto
                     )
                 }
                 _ => Packet::Message // placeholder
@@ -52,6 +75,10 @@ impl Parcel for Packet {
 
     fn write(&self, write: &mut Write) -> Result<(), Error> {
         match *self {
+            Packet::PowerOnRequest(ref header, ref data) => {
+                header.write(write);
+                data.write(write);
+            },
             Packet::DiscoveryRequest(ref header, ref data) => {
                 header.write(write);
                 data.write(write);
@@ -65,6 +92,18 @@ impl Parcel for Packet {
                 // header.version.write(write);
                 // write.write_all(buffer.into_inner().as_slice());
             },
+            Packet::DiscoveryResponse(ref header, ref data) => {
+                header.write(write);
+                data.write(write);
+            },
+            Packet::ConnectRequest(ref header, ref unprotected_data) => {
+                header.write(write);
+                unprotected_data.write(write);
+            },
+            Packet::ConnectResponse(ref header, ref unprotected_data) => {
+                header.write(write);
+                unprotected_data.write(write);
+            }
             _ => ()
         }
 
@@ -170,32 +209,18 @@ pub struct MessageHeader {
     pkt_type: packet::Type
 }
 
-// Data definitions. The define_packet macro implements Parcel for us on structs.
-define_packet!(DiscoveryRequestData {
-    unk: u16,
-    client_type: u32,
-    flags: u32
-});
-
-define_packet!(DiscoveryResponseData {
-    flags: u32,
-    client_type: u16,
-    name: SGString,
-    uuid: UUID
-});
-
-
-// power_request = 'power_request' / Struct(
-//     'liveid' / SGString('utf8')
-// ) / StructObj
-
-
 // discovery_request = 'discovery_request' / Struct(
 //     'unk' / Int16ub,
 //     'client_type' / Int32ub,
 //     'flags' / Int32ub
 // ) / StructObj
 
+// Data definitions. The define_packet macro implements Parcel for us on structs.
+define_packet!(DiscoveryRequestData {
+    unk: u16,
+    client_type: u32,
+    flags: u32
+});
 
 // discover_response = 'discovery_response' / Struct(
 //     'flags' / Int32ub,
@@ -206,6 +231,23 @@ define_packet!(DiscoveryResponseData {
 //     'cert' / CertificateAdapter()
 // ) / StructObj
 
+define_packet!(DiscoveryResponseData {
+    flags: u32,
+    client_type: u16,
+    name: SGString,
+    uuid: UUID,
+    padding: [u8; 5],
+    certificate: DynArray<u16, u8> // todo: create a type for this
+});
+
+// power_request = 'power_request' / Struct(
+//     'liveid' / SGString('utf8')
+// ) / StructObj
+
+// We don't have test data for this
+define_packet!(PowerOnRequestData {
+    liveid: SGString
+});
 
 // connect_request_unprotected = 'connect_request_unprotected' / Struct(
 //     'sg_uuid' / UUIDAdapter(),
@@ -214,6 +256,13 @@ define_packet!(DiscoveryResponseData {
 //     'iv' / Bytes(0x10)
 // ) / StructObj
 
+define_packet!(ConnectRequestUnprotectedData {
+    sg_uuid: [u8; 16], // todo: allow UUID parsing to bytes rather than string
+    public_key_type: u16,
+    public_key_1: [u8; 32], // todo: fix this, it complains about Clone not being implemented if you go above 32
+    public_key_2: [u8; 32],
+    iv: [u8;16]
+});
 
 // connect_request_protected = 'connect_request_protected' / Struct(
 //     'userhash' / SGString('utf8'),
@@ -223,11 +272,21 @@ define_packet!(DiscoveryResponseData {
 //     'connect_request_group_end' / Int32ub
 // ) / StructObj
 
+define_packet!(ConnectRequestProtectedData {
+    userhash: SGString,
+    jwt: SGString,
+    connect_request_num: u32,
+    connect_request_group_start: u32,
+    connect_request_group_end: u32
+});
 
 // connect_response_unprotected = 'connect_response_unprotected' / Struct(
 //     'iv' / Bytes(0x10)
 // ) / StructObj
 
+define_packet!(ConnectResponseUnprotectedData {
+    iv: [u8;16]
+});
 
 // connect_response_protected = 'connect_response_protected' / Struct(
 //     'connect_result' / Int16ub,
@@ -235,6 +294,11 @@ define_packet!(DiscoveryResponseData {
 //     'participant_id' / Int32ub
 // ) / StructObj
 
+define_packet!(ConnectResponseProtectedData {
+    connect_request: u16,
+    pairing_state: u16,
+    participant_id: u32
+});
 
 // struct = 'simple_message' / Struct(
 //     'header' / header,
@@ -283,6 +347,14 @@ mod test {
     }
 
     #[test]
+    fn rebuild_discovery_request_works() {
+        let data = include_bytes!("test/discovery_request");
+        let packet = Packet::from_raw_bytes(data).unwrap();
+
+        assert_eq!(data.to_vec(), packet.raw_bytes().unwrap());
+    }
+
+    #[test]
     fn parse_discovery_response_works() {
         let data = include_bytes!("test/discovery_response");
         let packet = Packet::from_raw_bytes(data).unwrap();
@@ -296,9 +368,54 @@ mod test {
                 // Protocol crate also exports a String type, dunno how to properly handle this yet though, so this'll have to do for now
                 assert_eq!(data.name, SGString::from_str(string::String::from("XboxOne")));
                 assert_eq!(data.uuid, UUID::from_string(string::String::from("DE305D54-75B4-431B-ADB2-EB6B9E546014")));
+                assert_eq!(data.certificate.elements.len(), 587); // todo: properly parse cert
+            },
+            _ => panic!("Wrong type")
+        }
+    }
 
-                // I didn't even attempt to handle the certificate
-            }
+    #[test]
+    fn rebuild_discovery_response_works() {
+        let data = include_bytes!("test/discovery_response");
+        let packet = Packet::from_raw_bytes(data).unwrap();
+
+        assert_eq!(data.to_vec(), packet.raw_bytes().unwrap());
+    }
+
+    #[test]
+    fn parse_connect_request_unprotected_data_works() {
+        let data = include_bytes!("test/connect_request");
+        let packet = Packet::from_raw_bytes(data).unwrap();
+
+        match packet {
+            Packet::ConnectRequest(header, unprotected_data) => {
+                assert_eq!(header.pkt_type, packet::Type::ConnectRequest);
+                assert_eq!(header.unprotected_payload_length, 98);
+                assert_eq!(header.protected_payload_length, 47);
+                assert_eq!(header.version, 2);
+                assert_eq!(unprotected_data.sg_uuid, [222, 48, 93, 84, 117, 180, 67, 27, 173, 178, 235, 107, 158, 84, 96, 20]);
+                assert_eq!(unprotected_data.public_key_type, 0);
+                assert_eq!(unprotected_data.public_key_1, [255u8; 32]);
+                assert_eq!(unprotected_data.public_key_2, [255u8; 32]);
+                assert_eq!(unprotected_data.iv, [41, 121, 210, 94, 160, 61, 151, 245, 143, 70, 147, 10, 40, 139, 245, 210]);
+            },
+            _ => panic!("Wrong type")
+        }
+    }
+
+    #[test]
+    fn parse_connect_response_unprotected_data_works() {
+        let data = include_bytes!("test/connect_response");
+        let packet = Packet::from_raw_bytes(data).unwrap();
+
+        match packet {
+            Packet::ConnectResponse(header, unprotected_data) => {
+                assert_eq!(header.pkt_type, packet::Type::ConnectResponse);
+                assert_eq!(header.unprotected_payload_length, 16);
+                assert_eq!(header.protected_payload_length, 8);
+                assert_eq!(header.version, 2);
+                assert_eq!(unprotected_data.iv, [198, 55, 50, 2, 189, 253, 17, 103, 207, 150,147, 73, 29, 34, 50, 42]);
+            },
             _ => panic!("Wrong type")
         }
     }
