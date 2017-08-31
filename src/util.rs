@@ -36,7 +36,7 @@ impl SGString {
 
 impl Parcel for SGString {
     fn read(read: &mut Read) -> Result<Self, Error> {
-        let data = DynArray::<i16, u8>::read(read)?;
+        let data = DynArray::<u16, u8>::read(read)?;
         let term = u8::read(read)?;
 
         // Error here if the terminator isn't 0
@@ -49,7 +49,7 @@ impl Parcel for SGString {
     }
 
     fn write(&self, write: &mut Write) -> Result<(), Error> {
-        let data = DynArray::<i16, u8>::new(self.data.clone());
+        let data = DynArray::<u16, u8>::new(self.data.clone());
         data.write(write);
         self.terminator.write(write);
 
@@ -74,7 +74,7 @@ impl UUID {
 
 impl Parcel for UUID {
     fn read(read: &mut Read) -> Result<Self, Error> {
-        let data = DynArray::<i16, u8>::read(read)?;
+        let data = DynArray::<u16, u8>::read(read)?;
         Ok(UUID {
             len: data.elements.len() as u16,
             value: String::from_utf8(data.elements)?
@@ -82,7 +82,7 @@ impl Parcel for UUID {
     }
 
     fn write(&self, write: &mut Write) -> Result<(), Error> {
-        let data = DynArray::<i16, u8>::new(self.value.clone().into_bytes());
+        let data = DynArray::<u16, u8>::new(self.value.clone().into_bytes());
         data.write(write);
         Ok(())
     }
