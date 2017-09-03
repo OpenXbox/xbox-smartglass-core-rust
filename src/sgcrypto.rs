@@ -32,7 +32,6 @@ impl Salt {
 
 /// The particular crypto ipmlementation used by SmartGlass
 pub struct Crypto {
-    public_key: Vec<u8>,
     aes_key: [u8;16],
     iv_key: [u8;16],
     hmac_key: [u8;32]
@@ -83,9 +82,8 @@ impl Crypto {
         &aes_key.clone_from_slice(&derived_key[0..16]);
         &iv_key.clone_from_slice(&derived_key[16..32]);
         &hmac_key.clone_from_slice(&derived_key[32..64]);
-
         
-        Crypto{public_key: public_key.to_vec(), aes_key, iv_key, hmac_key}
+        Crypto{aes_key, iv_key, hmac_key}
     }
 
     /// Calculates the number of bytes needed to hold the input after padding is applied
@@ -145,13 +143,28 @@ impl Crypto {
 }
 
 #[cfg(test)]
-mod test {
+pub mod test {
     use super::*;
 
     fn new_crypto() -> Crypto {
         let foreignPublicKey = "041db1e7943878b28c773228ebdcfb05b985be4a386a55f50066231360785f61b60038caf182d712d86c8a28a0e7e2733a0391b1169ef2905e4e21555b432b262d"
             .from_hex().unwrap();
         Crypto::new(&foreignPublicKey[..])
+    }
+
+    pub fn from_secret(secret: &[u8]) -> Crypto {
+        if (secret.len() != 64) {
+            panic!("Secret length should be exactly 64-bytes")
+        }
+
+        let mut aes_key = [0u8; 16];
+        let mut iv_key = [0u8; 16];
+        let mut hmac_key = [0u8; 32];
+        &aes_key.clone_from_slice(&secret[0..16]);
+        &iv_key.clone_from_slice(&secret[16..32]);
+        &hmac_key.clone_from_slice(&secret[32..64]);
+        
+        Crypto{aes_key, iv_key, hmac_key}
     }
 
     #[test]

@@ -43,7 +43,7 @@ impl Type {
 
 impl Parcel for Type {
     fn read(read: &mut Read) -> Result<Self, Error> {
-        Ok(Type::from_u16(u16::read(read).unwrap()).unwrap())
+        Ok(Type::from_u16(u16::read(read)?).unwrap())
     }
 
     fn write(&self, write: &mut Write) -> Result<(), Error> {
