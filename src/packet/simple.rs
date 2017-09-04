@@ -1,10 +1,11 @@
 extern crate nom;
 extern crate protocol;
 
-use std::io::{Read, Write};
+use std::io::{Read, Write, Cursor};
 
 use ::util::{SGString, UUID};
 use ::packet;
+use ::sgcrypto::Crypto;
 use self::nom::*;
 use self::protocol::*;
 
@@ -13,7 +14,7 @@ enum Packet {
     PowerOnRequest(SimpleHeader, PowerOnRequestData),
     DiscoveryRequest(SimpleHeader, DiscoveryRequestData),
     DiscoveryResponse(SimpleHeader, DiscoveryResponseData),
-    ConnectRequest(SimpleHeader, ConnectRequestUnprotectedData),
+    ConnectRequest(SimpleHeader, ConnectRequestUnprotectedData, ConnectRequestProtectedData),
     ConnectResponse(SimpleHeader, ConnectResponseUnprotectedData),
     Message
 }
@@ -25,52 +26,73 @@ impl Packet {
             data
         ))
     }
-}
 
-impl Parcel for Packet {
     fn read(read: &mut Read) -> Result<Self, Error> {
         let header = Header::read(read)?;
 
         let packet = match header {
             Header::Simple(header) => match header.pkt_type {
                 packet::Type::PowerOnRequest => {
-                    Packet::PowerOnRequest(
+                    Ok(Packet::PowerOnRequest(
                         header,
                         PowerOnRequestData::read(read)?
-                    )
+                    ))
                 },
                 packet::Type::DiscoveryRequest => {
-                    Packet::DiscoveryRequest(
+                    Ok(Packet::DiscoveryRequest(
                         header,
                         DiscoveryRequestData::read(read)?
-                    )
+                    ))
                 },
                 packet::Type::DiscoveryResponse => {
-                    Packet::DiscoveryResponse(
+                    Ok(Packet::DiscoveryResponse(
                         header,
                         DiscoveryResponseData::read(read)?
-                    )
-                },
+                    ))
+                }
+                _ => Err("Wrong type".into())
+            },
+            _ => Err("Wrong type".into())
+        };
+
+        packet
+    }
+
+    fn read_protected(read: &mut Read, crypto: &Crypto) -> Result<Self, Error> {
+        let header = Header::read(read)?;
+
+        let packet = match header {
+            Header::Simple(header) => match header.pkt_type {
                 packet::Type::ConnectRequest => {
-                    Packet::ConnectRequest(
+                    let unprotected = ConnectRequestUnprotectedData::read(read)?;
+                    let protected_len = header.protected_payload_length as usize;
+                    let mut protected_buf = Vec::<u8>::new();
+                    let mut decrypted_buf = vec![0u8; protected_len];
+                    let buf_size = read.read_to_end(&mut protected_buf)?;
+                    let hmac = &protected_buf.split_off(buf_size - 32);
+
+                    crypto.decrypt(&unprotected.iv, &protected_buf, &mut decrypted_buf);
+                    let protected = ConnectRequestProtectedData::from_raw_bytes(&decrypted_buf)?;
+
+                    Ok(Packet::ConnectRequest(
                         header,
-                        ConnectRequestUnprotectedData::read(read)?
-                        // todo: crypto
-                    )
+                        unprotected,
+                        protected
+                    ))
                 },
                 packet::Type::ConnectResponse => {
-                    Packet::ConnectResponse(
+                    Ok(Packet::ConnectResponse(
                         header,
                         ConnectResponseUnprotectedData::read(read)?
                         // todo: crypto
-                    )
-                }
-                _ => Packet::Message // placeholder
+                    ))
+                },
+                _ => Err("Wrong type".into())
             },
-            Header::Message(header) => Packet::Message
+            Header::Message(header) => Ok(Packet::Message)
         };
 
-        Ok(packet)
+        packet
     }
 
     fn write(&self, write: &mut Write) -> Result<(), Error> {
@@ -96,18 +118,52 @@ impl Parcel for Packet {
                 header.write(write);
                 data.write(write);
             },
-            Packet::ConnectRequest(ref header, ref unprotected_data) => {
+            _ => ()
+        }
+
+        Ok(())
+    }
+
+    fn write_protected(&self, write: &mut Write, crypto: &Crypto) -> Result<(), Error> {
+        // todo: actually encrypt data
+        match *self {
+            Packet::ConnectRequest(ref header, ref unprotected_data, ref protected_data) => {
                 header.write(write);
                 unprotected_data.write(write);
             },
             Packet::ConnectResponse(ref header, ref unprotected_data) => {
                 header.write(write);
                 unprotected_data.write(write);
-            }
+            },
             _ => ()
         }
 
         Ok(())
+    }
+
+    // Copied from Parcel trait
+    fn from_raw_bytes(bytes: &[u8]) -> Result<Self, Error> {
+        let mut buffer = Cursor::new(bytes);
+        Self::read(&mut buffer)
+    }
+
+    fn raw_bytes(&self) -> Result<Vec<u8>, Error> {
+        let mut buffer = Cursor::new(Vec::new());
+        self.write(&mut buffer)?;
+
+        Ok(buffer.into_inner())
+    }
+
+    fn from_raw_bytes_protected(bytes: &[u8], crypto: &Crypto) -> Result<Self, Error> {
+        let mut buffer = Cursor::new(bytes);
+        Self::read_protected(&mut buffer, &crypto)
+    }
+
+    fn raw_bytes_protected(&self, crypto: &Crypto) -> Result<Vec<u8>, Error> {
+        let mut buffer = Cursor::new(Vec::new());
+        self.write_protected(&mut buffer, &crypto)?;
+
+        Ok(buffer.into_inner())
     }
 }
 
@@ -385,19 +441,27 @@ mod test {
     #[test]
     fn parse_connect_request_unprotected_data_works() {
         let data = include_bytes!("test/connect_request");
-        let packet = Packet::from_raw_bytes(data).unwrap();
+        let crypto = ::sgcrypto::test::from_secret(include_bytes!("test/secret"));
+        let packet = Packet::from_raw_bytes_protected(data, &crypto).unwrap();
 
         match packet {
-            Packet::ConnectRequest(header, unprotected_data) => {
+            Packet::ConnectRequest(header, unprotected_data, protected_data) => {
                 assert_eq!(header.pkt_type, packet::Type::ConnectRequest);
                 assert_eq!(header.unprotected_payload_length, 98);
                 assert_eq!(header.protected_payload_length, 47);
                 assert_eq!(header.version, 2);
+
                 assert_eq!(unprotected_data.sg_uuid, [222, 48, 93, 84, 117, 180, 67, 27, 173, 178, 235, 107, 158, 84, 96, 20]);
                 assert_eq!(unprotected_data.public_key_type, 0);
                 assert_eq!(unprotected_data.public_key_1, [255u8; 32]);
                 assert_eq!(unprotected_data.public_key_2, [255u8; 32]);
                 assert_eq!(unprotected_data.iv, [41, 121, 210, 94, 160, 61, 151, 245, 143, 70, 147, 10, 40, 139, 245, 210]);
+
+                assert_eq!(protected_data.userhash, SGString::from_str(string::String::from("deadbeefdeadbeefde")));
+                assert_eq!(protected_data.jwt, SGString::from_str(string::String::from("dummy_token")));
+                assert_eq!(protected_data.connect_request_num, 0);
+                assert_eq!(protected_data.connect_request_group_start, 0);
+                assert_eq!(protected_data.connect_request_group_end, 2);
             },
             _ => panic!("Wrong type")
         }
@@ -406,7 +470,8 @@ mod test {
     #[test]
     fn parse_connect_response_unprotected_data_works() {
         let data = include_bytes!("test/connect_response");
-        let packet = Packet::from_raw_bytes(data).unwrap();
+        let crypto = ::sgcrypto::test::from_secret(include_bytes!("test/secret"));
+        let packet = Packet::from_raw_bytes_protected(data, &crypto).unwrap();
 
         match packet {
             Packet::ConnectResponse(header, unprotected_data) => {
