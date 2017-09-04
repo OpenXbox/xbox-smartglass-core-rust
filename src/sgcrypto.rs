@@ -205,6 +205,21 @@ pub mod test {
         assert_ne!(ciphertext, &[0xa0u8;16][..]);
     }
 
+    fn encrypt_matches_python() {
+        // encrypt 0xDEADBEEF using a known secret and iv
+
+        // IV = generated via python (arbitrary)
+        let iv = [0x51, 0x4a, 0xbc, 0x92, 0xea, 0x2a, 0x6e, 0xf7, 0x8e, 0x63, 0x80, 0x83, 0xb8, 0x58, 0x4b, 0x20];
+        // Plaintext = 0xDEADBEEF + pkcs padding
+        let plaintext = [0xde, 0xad, 0xbe, 0xef, 0x0c, 0x0c, 0x0c, 0x0c, 0x0c, 0x0c, 0x0c, 0x0c, 0x0c, 0x0c, 0x0c, 0x0c];
+        // Secret = from python project
+        let crypto = from_secret(include_bytes!("packet/test/secret"));
+        let mut ciphertext = vec![0u8, 16];
+        crypto.decrypt(&iv[..], &plaintext[..], &mut ciphertext[..]);
+        // Expected Ciphertext = result of encrypt in python project
+        assert_eq!(ciphertext, [0x64, 0x97, 0x23, 0x2a, 0x0e, 0x4e, 0x74, 0x34, 0x3c, 0x3a, 0x08, 0xb3, 0x68, 0x4b, 0x45, 0xf7])
+    }
+
     #[test]
     fn decrypt_works() {
         let plaintext = String::from("Test").into_bytes();
