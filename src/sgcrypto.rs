@@ -5,11 +5,16 @@ extern crate crypto;
 
 use self::rustc_serialize::hex::FromHex;
 use self::ring::{agreement, hmac, rand, digest};
+use self::ring::error::Unspecified;
 use self::untrusted::Input;
 use self::crypto::aes;
 use self::crypto::aes::KeySize;
 use self::crypto::blockmodes;
-use self::crypto::buffer::{RefReadBuffer, RefWriteBuffer};
+use self::crypto::symmetriccipher::SymmetricCipherError;
+use self::crypto::buffer::{RefReadBuffer, RefWriteBuffer, BufferResult};
+
+use std::error::Error;
+use std::marker::Sized;
 
 /// A class for adding salts to data before encryption
 enum Salt {
@@ -32,6 +37,7 @@ impl Salt {
 
 /// The particular crypto ipmlementation used by SmartGlass
 pub struct Crypto {
+    pub_key: [u8; 40],
     aes_key: [u8;16],
     iv_key: [u8;16],
     hmac_key: [u8;32]
@@ -76,14 +82,16 @@ impl Crypto {
         let derived_key = agreement::agree_ephemeral(private_key, &agreement::ECDH_P256, 
             untrusted_foreign_key, ring::error::Unspecified, kdf).unwrap();
 
+        let mut pub_key = [0u8; 40];
         let mut aes_key = [0u8; 16];
         let mut iv_key = [0u8; 16];
         let mut hmac_key = [0u8; 32];
+        &pub_key.clone_from_slice(&public_key[0..40]);
         &aes_key.clone_from_slice(&derived_key[0..16]);
         &iv_key.clone_from_slice(&derived_key[16..32]);
         &hmac_key.clone_from_slice(&derived_key[32..64]);
         
-        Crypto{aes_key, iv_key, hmac_key}
+        Crypto{pub_key, aes_key, iv_key, hmac_key}
     }
 
     /// Calculates the number of bytes needed to hold the input after padding is applied
@@ -97,11 +105,11 @@ impl Crypto {
     /// * iv - the IV for the encryption (must be exactly 16 bytes)
     /// * plaintext - the plaintext to be encrypted
     /// * ciphertext - the result of the encryption (use Crypto::aligned_len(plaintext) to determine the size this slice must be)
-    pub fn encrypt(&self, iv: &[u8], plaintext: &[u8], ciphertext: &mut [u8]) {
+    pub fn encrypt(&self, iv: &[u8], plaintext: &[u8], ciphertext: &mut [u8]) -> Result<BufferResult, SymmetricCipherError> {
         let mut read_buf = RefReadBuffer::new(plaintext);
         let mut write_buf = RefWriteBuffer::new(ciphertext);
         let mut encryptor = aes::cbc_encryptor(KeySize::KeySize128, &self.aes_key, iv, blockmodes::PkcsPadding);
-        encryptor.encrypt(&mut read_buf, &mut write_buf, true);
+        encryptor.encrypt(&mut read_buf, &mut write_buf, true)
     }
 
     /// Decrypts a ciphertext into a plaintext
@@ -110,11 +118,11 @@ impl Crypto {
     /// * iv - the IV used during encryption (must be exactly 16 bytes)
     /// * ciphertext - the ciphertext to be decrypted
     /// * plaintext - the result of the decryption (length is awkward here, will need to fix) 
-    pub fn decrypt(&self, iv: &[u8], ciphertext: &[u8], plaintext: &mut [u8]) {
+    pub fn decrypt(&self, iv: &[u8], ciphertext: &[u8], plaintext: &mut [u8]) -> Result<BufferResult, SymmetricCipherError> {
         let mut read_buf = RefReadBuffer::new(ciphertext);
         let mut write_buf = RefWriteBuffer::new(plaintext);
         let mut decryptor = aes::cbc_decryptor(KeySize::KeySize128, &self.aes_key, iv, blockmodes::PkcsPadding);
-        decryptor.decrypt(&mut read_buf, &mut write_buf, true);
+        decryptor.decrypt(&mut read_buf, &mut write_buf, true)
     }
 
     /// Creates a signature for a slice
@@ -132,13 +140,9 @@ impl Crypto {
     /// # Arguments
     /// * data - the data that was signed
     /// * signature - the signature of the data
-    pub fn verify(&self, data: &[u8], signature: &[u8]) -> bool {
+    pub fn verify(&self, data: &[u8], signature: &[u8]) -> Result<(), Unspecified> {
         let key = hmac::VerificationKey::new(&digest::SHA256, &self.hmac_key[..]);
-        let verification = hmac::verify(&key, data, signature);
-        match verification {
-            Ok(_) => true,
-            Err(_) => false
-        }
+        hmac::verify(&key, data, signature)
     }
 }
 
@@ -164,7 +168,7 @@ pub mod test {
         &iv_key.clone_from_slice(&secret[16..32]);
         &hmac_key.clone_from_slice(&secret[32..64]);
         
-        Crypto{aes_key, iv_key, hmac_key}
+        Crypto{pub_key: [0u8; 40], aes_key, iv_key, hmac_key}
     }
 
     #[test]
@@ -200,7 +204,8 @@ pub mod test {
         let mut ciphertext = vec![0xa0u8; Crypto::aligned_len(&plaintext[..])];
         let crypto = new_crypto();
         let iv = [0xb0u8; 16];
-        crypto.encrypt(&iv[..], &plaintext[..], &mut ciphertext[..]);
+        let result = crypto.encrypt(&iv[..], &plaintext[..], &mut ciphertext[..]);
+        assert!(!result.is_err());
         assert_eq!(ciphertext.len(), 16);
         assert_ne!(ciphertext, &[0xa0u8;16][..]);
     }
@@ -215,7 +220,8 @@ pub mod test {
         // Secret = from python project
         let crypto = from_secret(include_bytes!("packet/test/secret"));
         let mut ciphertext = vec![0u8, 16];
-        crypto.decrypt(&iv[..], &plaintext[..], &mut ciphertext[..]);
+        let result = crypto.decrypt(&iv[..], &plaintext[..], &mut ciphertext[..]);
+        assert!(!result.is_err());
         // Expected Ciphertext = result of encrypt in python project
         assert_eq!(ciphertext, [0x64, 0x97, 0x23, 0x2a, 0x0e, 0x4e, 0x74, 0x34, 0x3c, 0x3a, 0x08, 0xb3, 0x68, 0x4b, 0x45, 0xf7])
     }
@@ -226,10 +232,12 @@ pub mod test {
         let mut ciphertext = vec![0xa0u8; Crypto::aligned_len(&plaintext[..])];
         let crypto = new_crypto();
         let iv = [0xb0u8; 16];
-        crypto.encrypt(&iv[..], &plaintext[..], &mut ciphertext[..]);
+        let enc_result = crypto.encrypt(&iv[..], &plaintext[..], &mut ciphertext[..]);
+        assert!(!enc_result.is_err());
 
         let mut newPlaintext = vec![0u8; plaintext.len()];
-        crypto.decrypt(&iv[..], &ciphertext[..], &mut newPlaintext[..]);
+        let dec_result = crypto.decrypt(&iv[..], &ciphertext[..], &mut newPlaintext[..]);
+        assert!(!dec_result.is_err());
         assert_eq!(plaintext, newPlaintext);
     }
 
@@ -248,7 +256,7 @@ pub mod test {
         let mut signature = [0xa0u8;32];
         let crypto = new_crypto();
         crypto.sign(&plaintext[..], &mut signature);
-        assert!(crypto.verify(&plaintext[..], &signature[..]));
+        assert!(!crypto.verify(&plaintext[..], &signature[..]).is_err());
     }
 }
 
