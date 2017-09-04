@@ -6,6 +6,7 @@ use std::io::{Read, Write, Cursor};
 use ::util::{SGString, UUID};
 use ::packet;
 use ::sgcrypto::Crypto;
+use ::state::*;
 use self::nom::*;
 use self::protocol::*;
 
@@ -15,84 +16,86 @@ enum Packet {
     DiscoveryRequest(SimpleHeader, DiscoveryRequestData),
     DiscoveryResponse(SimpleHeader, DiscoveryResponseData),
     ConnectRequest(SimpleHeader, ConnectRequestUnprotectedData, ConnectRequestProtectedData),
-    ConnectResponse(SimpleHeader, ConnectResponseUnprotectedData),
+    ConnectResponse(SimpleHeader, ConnectResponseUnprotectedData, ConnectResponseProtectedData),
     Message
 }
 
 impl Packet {
-    fn new(data: DiscoveryRequestData) -> Result<Self, Error> {
-        Ok(Packet::DiscoveryRequest(
-            SimpleHeader::new(packet::Type::DiscoveryRequest, 0)?,
-            data
-        ))
-    }
+    fn read(input: &[u8], state: &SGState) -> Result<Self, Error> {
+        let mut reader = Cursor::new(input);
+        let pkt_type = packet::Type::read(&mut reader)?;
+        reader.set_position(0);
 
-    fn read(read: &mut Read) -> Result<Self, Error> {
-        let header = Header::read(read)?;
-
-        let packet = match header {
-            Header::Simple(header) => match header.pkt_type {
-                packet::Type::PowerOnRequest => {
-                    Ok(Packet::PowerOnRequest(
-                        header,
-                        PowerOnRequestData::read(read)?
-                    ))
-                },
-                packet::Type::DiscoveryRequest => {
-                    Ok(Packet::DiscoveryRequest(
-                        header,
-                        DiscoveryRequestData::read(read)?
-                    ))
-                },
-                packet::Type::DiscoveryResponse => {
-                    Ok(Packet::DiscoveryResponse(
-                        header,
-                        DiscoveryResponseData::read(read)?
-                    ))
+        match pkt_type {
+            packet::Type::PowerOnRequest |
+            packet::Type::DiscoveryRequest |
+            packet::Type::DiscoveryResponse |
+            packet::Type::ConnectRequest => {
+                if let SGState::Disconnected = *state {
+                    return Packet::read_simple(&mut reader, &state)
                 }
-                _ => Err("Wrong type".into())
-            },
-            _ => Err("Wrong type".into())
-        };
-
-        packet
+                Err("Invalid State".into())
+            }
+            packet::Type::ConnectResponse => {
+                if let SGState::Connected(ref internal_state) = *state {
+                    let data_len = input.len() - 32;
+                    if internal_state.crypto.verify(&input[..data_len], &input[data_len..]).is_err() {
+                        return Err("Invalid signature".into())
+                    }
+                    return Packet::read_simple(&mut reader, &state)
+                }
+                Err("Invalid State".into())
+            }
+            packet::Type::Message => Ok(Packet::Message)
+        }
     }
 
-    fn read_protected(read: &mut Read, crypto: &Crypto) -> Result<Self, Error> {
-        let header = Header::read(read)?;
-
-        let packet = match header {
-            Header::Simple(header) => match header.pkt_type {
-                packet::Type::ConnectRequest => {
-                    let unprotected = ConnectRequestUnprotectedData::read(read)?;
+    fn read_simple(reader: &mut Read, state: &SGState) -> Result<Self, Error> {
+        let header = SimpleHeader::read(reader)?;
+        match header.pkt_type {
+            packet::Type::PowerOnRequest => {
+                Ok(Packet::PowerOnRequest(
+                    header,
+                    PowerOnRequestData::read(reader)?
+                ))
+            },
+            packet::Type::DiscoveryRequest => {
+                Ok(Packet::DiscoveryRequest(
+                    header,
+                    DiscoveryRequestData::read(reader)?
+                ))
+            },
+            packet::Type::DiscoveryResponse => {
+                Ok(Packet::DiscoveryResponse(
+                    header,
+                    DiscoveryResponseData::read(reader)?
+                ))
+            },
+            packet::Type::ConnectRequest => {
+                Err("Cannot act as a server".into())
+            },
+            packet::Type::ConnectResponse => {
+                // I wish we didn't have to recheck this. Maybe move it into a different method?
+                if let SGState::Connected(ref state) = *state {
+                    let unprotected = ConnectResponseUnprotectedData::read(reader)?;
                     let protected_len = header.protected_payload_length as usize;
                     let mut protected_buf = Vec::<u8>::new();
                     let mut decrypted_buf = vec![0u8; protected_len];
-                    let buf_size = read.read_to_end(&mut protected_buf)?;
-                    let hmac = &protected_buf.split_off(buf_size - 32);
+                    let buf_size = reader.read_to_end(&mut protected_buf)?;
+                    &protected_buf.split_off(buf_size - 32);
+                    state.crypto.decrypt(&unprotected.iv, &protected_buf, &mut decrypted_buf);
+                    let protected = ConnectResponseProtectedData::from_raw_bytes(&decrypted_buf)?;
 
-                    crypto.decrypt(&unprotected.iv, &protected_buf, &mut decrypted_buf);
-                    let protected = ConnectRequestProtectedData::from_raw_bytes(&decrypted_buf)?;
-
-                    Ok(Packet::ConnectRequest(
+                    return Ok(Packet::ConnectResponse(
                         header,
                         unprotected,
                         protected
-                    ))
-                },
-                packet::Type::ConnectResponse => {
-                    Ok(Packet::ConnectResponse(
-                        header,
-                        ConnectResponseUnprotectedData::read(read)?
-                        // todo: crypto
-                    ))
-                },
-                _ => Err("Wrong type".into())
-            },
-            Header::Message(header) => Ok(Packet::Message)
-        };
-
-        packet
+                    ));
+                }
+                Err("Invalid State".into())
+            }
+            _ => Err("Incorrect Type".into())
+        }
     }
 
     fn write(&self, write: &mut Write) -> Result<(), Error> {
@@ -118,20 +121,11 @@ impl Packet {
                 header.write(write);
                 data.write(write);
             },
-            _ => ()
-        }
-
-        Ok(())
-    }
-
-    fn write_protected(&self, write: &mut Write, crypto: &Crypto) -> Result<(), Error> {
-        // todo: actually encrypt data
-        match *self {
             Packet::ConnectRequest(ref header, ref unprotected_data, ref protected_data) => {
                 header.write(write);
                 unprotected_data.write(write);
             },
-            Packet::ConnectResponse(ref header, ref unprotected_data) => {
+            Packet::ConnectResponse(ref header, ref unprotected_data, ref protected_data) => {
                 header.write(write);
                 unprotected_data.write(write);
             },
@@ -139,12 +133,6 @@ impl Packet {
         }
 
         Ok(())
-    }
-
-    // Copied from Parcel trait
-    fn from_raw_bytes(bytes: &[u8]) -> Result<Self, Error> {
-        let mut buffer = Cursor::new(bytes);
-        Self::read(&mut buffer)
     }
 
     fn raw_bytes(&self) -> Result<Vec<u8>, Error> {
@@ -152,67 +140,6 @@ impl Packet {
         self.write(&mut buffer)?;
 
         Ok(buffer.into_inner())
-    }
-
-    fn from_raw_bytes_protected(bytes: &[u8], crypto: &Crypto) -> Result<Self, Error> {
-        let mut buffer = Cursor::new(bytes);
-        Self::read_protected(&mut buffer, &crypto)
-    }
-
-    fn raw_bytes_protected(&self, crypto: &Crypto) -> Result<Vec<u8>, Error> {
-        let mut buffer = Cursor::new(Vec::new());
-        self.write_protected(&mut buffer, &crypto)?;
-
-        Ok(buffer.into_inner())
-    }
-}
-
-// Header enum so we have a single place to read/"write" headers. In reality we unpack the parsed header and insert that in the Packet enum.
-#[derive(Debug)]
-enum Header {
-    Simple(SimpleHeader),
-    Message(MessageHeader)
-}
-
-impl Parcel for Header {
-    fn read(read: &mut Read) -> Result<Self, Error> {
-        let pkt_type = packet::Type::read(read).unwrap();
-
-        let header = match pkt_type {
-            packet::Type::ConnectRequest |
-            packet::Type::ConnectResponse |
-            packet::Type::DiscoveryRequest |
-            packet::Type::DiscoveryResponse |
-            packet::Type::PowerOnRequest => Header::Simple(SimpleHeader {
-                pkt_type: pkt_type,
-                unprotected_payload_length: u16::read(read)?,
-                protected_payload_length: if pkt_type.has_protected_data() { u16::read(read)? } else { 0 },
-                version: u16::read(read)?
-            }),
-            packet::Type::Message => Header::Message(MessageHeader {
-                pkt_type
-            })
-        };
-
-        Ok(header)
-    }
-
-    fn write(&self, write: &mut Write) -> Result<(), Error> {
-        match *self {
-            Header::Simple(ref header) => {
-                header.pkt_type.write(write);
-                header.unprotected_payload_length.write(write);
-                if header.pkt_type.has_protected_data() {
-                    header.protected_payload_length.write(write);
-                }
-                header.version.write(write);
-            },
-            Header::Message(ref header) => {
-                header.pkt_type.write(write);
-            }
-        }
-
-        Ok(())
     }
 }
 
@@ -386,7 +313,7 @@ mod test {
     #[test]
     fn parse_discovery_request_works() {
         let data = include_bytes!("test/discovery_request");
-        let packet = Packet::from_raw_bytes(data).unwrap();
+        let packet = Packet::read(data, &SGState::Disconnected).unwrap();
 
         match packet {
             Packet::DiscoveryRequest(header, data) => {
@@ -405,7 +332,7 @@ mod test {
     #[test]
     fn rebuild_discovery_request_works() {
         let data = include_bytes!("test/discovery_request");
-        let packet = Packet::from_raw_bytes(data).unwrap();
+        let packet = Packet::read(data, &SGState::Disconnected).unwrap();
 
         assert_eq!(data.to_vec(), packet.raw_bytes().unwrap());
     }
@@ -413,7 +340,7 @@ mod test {
     #[test]
     fn parse_discovery_response_works() {
         let data = include_bytes!("test/discovery_response");
-        let packet = Packet::from_raw_bytes(data).unwrap();
+        let packet = Packet::read(data, &SGState::Disconnected).unwrap();
 
         match packet {
             Packet::DiscoveryResponse(header, data) => {
@@ -433,53 +360,58 @@ mod test {
     #[test]
     fn rebuild_discovery_response_works() {
         let data = include_bytes!("test/discovery_response");
-        let packet = Packet::from_raw_bytes(data).unwrap();
+        let packet = Packet::read(data, &SGState::Disconnected).unwrap();
 
         assert_eq!(data.to_vec(), packet.raw_bytes().unwrap());
     }
 
-    #[test]
-    fn parse_connect_request_unprotected_data_works() {
-        let data = include_bytes!("test/connect_request");
-        let crypto = ::sgcrypto::test::from_secret(include_bytes!("test/secret"));
-        let packet = Packet::from_raw_bytes_protected(data, &crypto).unwrap();
+    // #[test]
+    // fn parse_connect_request_unprotected_data_works() {
+    //     let data = include_bytes!("test/connect_request");
+    //     let crypto = ::sgcrypto::test::from_secret(include_bytes!("test/secret"));
+    //     let packet = Packet::from_raw_bytes_protected(data, &crypto).unwrap();
 
-        match packet {
-            Packet::ConnectRequest(header, unprotected_data, protected_data) => {
-                assert_eq!(header.pkt_type, packet::Type::ConnectRequest);
-                assert_eq!(header.unprotected_payload_length, 98);
-                assert_eq!(header.protected_payload_length, 47);
-                assert_eq!(header.version, 2);
+    //     match packet {
+    //         Packet::ConnectRequest(header, unprotected_data, protected_data) => {
+    //             assert_eq!(header.pkt_type, packet::Type::ConnectRequest);
+    //             assert_eq!(header.unprotected_payload_length, 98);
+    //             assert_eq!(header.protected_payload_length, 47);
+    //             assert_eq!(header.version, 2);
 
-                assert_eq!(unprotected_data.sg_uuid, [222, 48, 93, 84, 117, 180, 67, 27, 173, 178, 235, 107, 158, 84, 96, 20]);
-                assert_eq!(unprotected_data.public_key_type, 0);
-                assert_eq!(unprotected_data.public_key_1, [255u8; 32]);
-                assert_eq!(unprotected_data.public_key_2, [255u8; 32]);
-                assert_eq!(unprotected_data.iv, [41, 121, 210, 94, 160, 61, 151, 245, 143, 70, 147, 10, 40, 139, 245, 210]);
+    //             assert_eq!(unprotected_data.sg_uuid, [222, 48, 93, 84, 117, 180, 67, 27, 173, 178, 235, 107, 158, 84, 96, 20]);
+    //             assert_eq!(unprotected_data.public_key_type, 0);
+    //             assert_eq!(unprotected_data.public_key_1, [255u8; 32]);
+    //             assert_eq!(unprotected_data.public_key_2, [255u8; 32]);
+    //             assert_eq!(unprotected_data.iv, [41, 121, 210, 94, 160, 61, 151, 245, 143, 70, 147, 10, 40, 139, 245, 210]);
 
-                assert_eq!(protected_data.userhash, SGString::from_str(string::String::from("deadbeefdeadbeefde")));
-                assert_eq!(protected_data.jwt, SGString::from_str(string::String::from("dummy_token")));
-                assert_eq!(protected_data.connect_request_num, 0);
-                assert_eq!(protected_data.connect_request_group_start, 0);
-                assert_eq!(protected_data.connect_request_group_end, 2);
-            },
-            _ => panic!("Wrong type")
-        }
-    }
+    //             assert_eq!(protected_data.userhash, SGString::from_str(string::String::from("deadbeefdeadbeefde")));
+    //             assert_eq!(protected_data.jwt, SGString::from_str(string::String::from("dummy_token")));
+    //             assert_eq!(protected_data.connect_request_num, 0);
+    //             assert_eq!(protected_data.connect_request_group_start, 0);
+    //             assert_eq!(protected_data.connect_request_group_end, 2);
+    //         },
+    //         _ => panic!("Wrong type")
+    //     }
+    // }
 
     #[test]
     fn parse_connect_response_unprotected_data_works() {
         let data = include_bytes!("test/connect_response");
         let crypto = ::sgcrypto::test::from_secret(include_bytes!("test/secret"));
-        let packet = Packet::from_raw_bytes_protected(data, &crypto).unwrap();
+        let state = State{ connection_state: ConnectionState::Connecting, pairing_state: PairingState::NotPaired, crypto };
+        let packet = Packet::read(data, &SGState::Connected(state)).unwrap();
 
         match packet {
-            Packet::ConnectResponse(header, unprotected_data) => {
+            Packet::ConnectResponse(header, unprotected_data, protected_data) => {
                 assert_eq!(header.pkt_type, packet::Type::ConnectResponse);
                 assert_eq!(header.unprotected_payload_length, 16);
                 assert_eq!(header.protected_payload_length, 8);
                 assert_eq!(header.version, 2);
                 assert_eq!(unprotected_data.iv, [198, 55, 50, 2, 189, 253, 17, 103, 207, 150,147, 73, 29, 34, 50, 42]);
+
+                assert_eq!(protected_data.connect_request, 0);
+                assert_eq!(protected_data.pairing_state, 0);
+                assert_eq!(protected_data.participant_id, 31);
             },
             _ => panic!("Wrong type")
         }
