@@ -6,7 +6,6 @@ use std::io::{Read, Write};
 use self::nom::*;
 use self::protocol::{Parcel, DynArray, Error};
 use self::protocol::String as PrefixedString;
-use ::serialize::*;
 
 /// A representation of the weird serialization format of strings in SG packets
 /// NOTE: this will not work with serde

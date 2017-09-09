@@ -3,8 +3,6 @@ extern crate protocol;
 pub mod simple;
 
 use std::io::{Read, Write};
-
-use ::serialize::{Serialize};
 use self::protocol::*;
 
 #[repr(u16)]
