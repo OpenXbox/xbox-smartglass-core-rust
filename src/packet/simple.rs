@@ -1,14 +1,17 @@
-extern crate nom;
 extern crate protocol;
+extern crate nom;
 
+
+use std::io;
 use std::io::{Read, Write, Cursor};
 
 use ::util::{SGString, UUID};
 use ::packet;
+use ::sgcrypto;
 use ::sgcrypto::Crypto;
 use ::state::*;
 use self::nom::*;
-use self::protocol::*;
+use self::protocol::{DynArray, Parcel};
 
 #[derive(Debug)]
 enum Packet {
@@ -20,8 +23,23 @@ enum Packet {
     Message
 }
 
+quick_error! {
+    #[derive(Debug)]
+    pub enum ReadError {
+        Decrypt(err: sgcrypto::Error) { }
+        IO(err: io::Error) { from() }
+        Message(err: String) { from() }
+        NotImplimented { }
+        Read(err: protocol::Error) { from() }
+        Signature(err: sgcrypto::Error) { }
+        State(err: InvalidState) { from() }
+        Type(pkt_type: packet::Type) { }
+        
+    }
+}
+
 impl Packet {
-    fn read(input: &[u8], state: &SGState) -> Result<Self, Error> {
+    fn read(input: &[u8], state: &SGState) -> Result<Self, ReadError> {
         let mut reader = Cursor::new(input);
         let pkt_type = packet::Type::read(&mut reader)?;
         reader.set_position(0);
@@ -31,26 +49,20 @@ impl Packet {
             packet::Type::DiscoveryRequest |
             packet::Type::DiscoveryResponse |
             packet::Type::ConnectRequest => {
-                if let SGState::Disconnected = *state {
-                    return Packet::read_simple(&mut reader, &state)
-                }
-                Err("Invalid State".into())
+                state.ensure_disconnected()?;
+                Packet::read_simple(&mut reader, &state)
             }
             packet::Type::ConnectResponse => {
-                if let SGState::Connected(ref internal_state) = *state {
-                    let data_len = input.len() - 32;
-                    if internal_state.crypto.verify(&input[..data_len], &input[data_len..]).is_err() {
-                        return Err("Invalid signature".into())
-                    }
-                    return Packet::read_simple(&mut reader, &state)
-                }
-                Err("Invalid State".into())
+                let internal_state = state.ensure_connected()?;
+                let data_len = input.len() - 32;
+                internal_state.crypto.verify(&input[..data_len], &input[data_len..]).map_err(ReadError::Signature)?;
+                Packet::read_simple(&mut reader, &state)
             }
             packet::Type::Message => Ok(Packet::Message)
         }
     }
 
-    fn read_simple(reader: &mut Read, state: &SGState) -> Result<Self, Error> {
+    fn read_simple(reader: &mut Read, state: &SGState) -> Result<Self, ReadError> {
         let header = SimpleHeader::read(reader)?;
         match header.pkt_type {
             packet::Type::PowerOnRequest => {
@@ -72,33 +84,31 @@ impl Packet {
                 ))
             },
             packet::Type::ConnectRequest => {
-                Err("Cannot act as a server".into())
+                Err(ReadError::NotImplimented)
             },
             packet::Type::ConnectResponse => {
                 // I wish we didn't have to recheck this. Maybe move it into a different method?
-                if let SGState::Connected(ref state) = *state {
-                    let unprotected = ConnectResponseUnprotectedData::read(reader)?;
-                    let protected_len = header.protected_payload_length as usize;
-                    let mut protected_buf = Vec::<u8>::new();
-                    let mut decrypted_buf = vec![0u8; protected_len];
-                    let buf_size = reader.read_to_end(&mut protected_buf)?;
-                    &protected_buf.split_off(buf_size - 32);
-                    state.crypto.decrypt(&unprotected.iv, &protected_buf, &mut decrypted_buf);
-                    let protected = ConnectResponseProtectedData::from_raw_bytes(&decrypted_buf)?;
+                let internal_state = state.ensure_connected()?;
+                let unprotected = ConnectResponseUnprotectedData::read(reader)?;
+                let protected_len = header.protected_payload_length as usize;
+                let mut protected_buf = Vec::<u8>::new();
+                let mut decrypted_buf = vec![0u8; protected_len];
+                let buf_size = reader.read_to_end(&mut protected_buf)?;
+                &protected_buf.split_off(buf_size - 32);
+                internal_state.crypto.decrypt(&unprotected.iv, &protected_buf, &mut decrypted_buf).map_err(ReadError::Decrypt)?;
+                let protected = ConnectResponseProtectedData::from_raw_bytes(&decrypted_buf)?;
 
-                    return Ok(Packet::ConnectResponse(
-                        header,
-                        unprotected,
-                        protected
-                    ));
-                }
-                Err("Invalid State".into())
+                return Ok(Packet::ConnectResponse(
+                    header,
+                    unprotected,
+                    protected
+                ));
             }
-            _ => Err("Incorrect Type".into())
+            _ => Err(ReadError::Type(header.pkt_type))
         }
     }
 
-    fn write(&self, write: &mut Write) -> Result<(), Error> {
+    fn write(&self, write: &mut Write) -> Result<(), protocol::Error> {
         match *self {
             Packet::PowerOnRequest(ref header, ref data) => {
                 header.write(write);
@@ -135,7 +145,7 @@ impl Packet {
         Ok(())
     }
 
-    fn raw_bytes(&self) -> Result<Vec<u8>, Error> {
+    fn raw_bytes(&self) -> Result<Vec<u8>, protocol::Error> {
         let mut buffer = Cursor::new(Vec::new());
         self.write(&mut buffer)?;
 
@@ -152,7 +162,7 @@ pub struct SimpleHeader {
 }
 
 impl SimpleHeader {
-    fn new(pkt_type: packet::Type, version: u16) -> Result<Self, Error> {
+    fn new(pkt_type: packet::Type, version: u16) -> Result<Self, protocol::Error> {
         Ok(SimpleHeader {
             pkt_type: pkt_type,
             unprotected_payload_length: 0,
@@ -163,7 +173,7 @@ impl SimpleHeader {
 }
 
 impl Parcel for SimpleHeader {
-    fn read(read: &mut Read) -> Result<Self, Error> {
+    fn read(read: &mut Read) -> Result<Self, protocol::Error> {
         let pkt_type = packet::Type::read(read)?;
 
         Ok(SimpleHeader {
@@ -174,7 +184,7 @@ impl Parcel for SimpleHeader {
         })
     }
 
-    fn write(&self, write: &mut Write) -> Result<(), Error> {
+    fn write(&self, write: &mut Write) -> Result<(), protocol::Error> {
         self.pkt_type.write(write);
         self.unprotected_payload_length.write(write);
         if self.pkt_type.has_protected_data() {

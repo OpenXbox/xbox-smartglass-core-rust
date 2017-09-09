@@ -3,6 +3,8 @@ extern crate ring;
 extern crate untrusted;
 extern crate crypto;
 
+use std;
+
 use self::rustc_serialize::hex::FromHex;
 use self::ring::{agreement, hmac, rand, digest};
 use self::ring::error::Unspecified;
@@ -13,8 +15,16 @@ use self::crypto::blockmodes;
 use self::crypto::symmetriccipher::SymmetricCipherError;
 use self::crypto::buffer::{RefReadBuffer, RefWriteBuffer, BufferResult};
 
-use std::error::Error;
-use std::marker::Sized;
+quick_error! {
+    #[derive(Debug)]
+    pub enum Error {
+        // Todo: Add more errors here?
+        Unspecified {
+            from(SymmetricCipherError)
+            from(Unspecified)
+         }
+    }
+}
 
 /// A class for adding salts to data before encryption
 enum Salt {
@@ -105,11 +115,12 @@ impl Crypto {
     /// * iv - the IV for the encryption (must be exactly 16 bytes)
     /// * plaintext - the plaintext to be encrypted
     /// * ciphertext - the result of the encryption (use Crypto::aligned_len(plaintext) to determine the size this slice must be)
-    pub fn encrypt(&self, iv: &[u8], plaintext: &[u8], ciphertext: &mut [u8]) -> Result<BufferResult, SymmetricCipherError> {
+    pub fn encrypt(&self, iv: &[u8], plaintext: &[u8], ciphertext: &mut [u8]) -> Result<BufferResult, Error> {
         let mut read_buf = RefReadBuffer::new(plaintext);
         let mut write_buf = RefWriteBuffer::new(ciphertext);
         let mut encryptor = aes::cbc_encryptor(KeySize::KeySize128, &self.aes_key, iv, blockmodes::PkcsPadding);
-        encryptor.encrypt(&mut read_buf, &mut write_buf, true)
+        let res = encryptor.encrypt(&mut read_buf, &mut write_buf, true)?;
+        Ok(res)
     }
 
     /// Decrypts a ciphertext into a plaintext
@@ -118,11 +129,12 @@ impl Crypto {
     /// * iv - the IV used during encryption (must be exactly 16 bytes)
     /// * ciphertext - the ciphertext to be decrypted
     /// * plaintext - the result of the decryption (length is awkward here, will need to fix) 
-    pub fn decrypt(&self, iv: &[u8], ciphertext: &[u8], plaintext: &mut [u8]) -> Result<BufferResult, SymmetricCipherError> {
+    pub fn decrypt(&self, iv: &[u8], ciphertext: &[u8], plaintext: &mut [u8]) -> Result<BufferResult, Error> {
         let mut read_buf = RefReadBuffer::new(ciphertext);
         let mut write_buf = RefWriteBuffer::new(plaintext);
         let mut decryptor = aes::cbc_decryptor(KeySize::KeySize128, &self.aes_key, iv, blockmodes::PkcsPadding);
-        decryptor.decrypt(&mut read_buf, &mut write_buf, true)
+        let res = decryptor.decrypt(&mut read_buf, &mut write_buf, true)?;
+        Ok(res)
     }
 
     /// Creates a signature for a slice
@@ -140,9 +152,10 @@ impl Crypto {
     /// # Arguments
     /// * data - the data that was signed
     /// * signature - the signature of the data
-    pub fn verify(&self, data: &[u8], signature: &[u8]) -> Result<(), Unspecified> {
+    pub fn verify(&self, data: &[u8], signature: &[u8]) -> Result<(), Error> {
         let key = hmac::VerificationKey::new(&digest::SHA256, &self.hmac_key[..]);
-        hmac::verify(&key, data, signature)
+        hmac::verify(&key, data, signature)?;
+        Ok(())
     }
 }
 
