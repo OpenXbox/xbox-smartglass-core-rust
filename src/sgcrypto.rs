@@ -105,8 +105,12 @@ impl Crypto {
     }
 
     /// Calculates the number of bytes needed to hold the input after padding is applied
-    pub fn aligned_len(input: &[u8]) -> usize {
-        return input.len() + (16 - input.len() % 16)
+    pub fn aligned_len(len: usize) -> usize {
+        if (len % 16 == 0) {
+           len
+        } else {
+            len + (16 - len % 16)
+        }
     }
 
     /// Encrypts a plaintext into a ciphertext
@@ -186,10 +190,10 @@ pub mod test {
 
     #[test]
     fn alignment_works() {
-        let alignment = Crypto::aligned_len(&[0u8;4][..]);
+        let alignment = Crypto::aligned_len(4);
         assert_eq!(alignment, 16);
-        let alignment = Crypto::aligned_len(&[0u8;16][..]);
-        assert_eq!(alignment, 32);
+        let alignment = Crypto::aligned_len(16);
+        assert_eq!(alignment, 16);
     }
 
     #[test]
@@ -214,7 +218,7 @@ pub mod test {
     #[test]
     fn encrypt_works() {
         let plaintext = String::from("Test").into_bytes();
-        let mut ciphertext = vec![0xa0u8; Crypto::aligned_len(&plaintext[..])];
+        let mut ciphertext = vec![0xa0u8; Crypto::aligned_len(plaintext.len())];
         let crypto = new_crypto();
         let iv = [0xb0u8; 16];
         let result = crypto.encrypt(&iv[..], &plaintext[..], &mut ciphertext[..]);
@@ -242,7 +246,7 @@ pub mod test {
     #[test]
     fn decrypt_works() {
         let plaintext = String::from("Test").into_bytes();
-        let mut ciphertext = vec![0xa0u8; Crypto::aligned_len(&plaintext[..])];
+        let mut ciphertext = vec![0xa0u8; Crypto::aligned_len(plaintext.len())];
         let crypto = new_crypto();
         let iv = [0xb0u8; 16];
         let enc_result = crypto.encrypt(&iv[..], &plaintext[..], &mut ciphertext[..]);

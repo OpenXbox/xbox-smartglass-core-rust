@@ -3,7 +3,7 @@ extern crate nom;
 
 
 use std::io;
-use std::io::{Read, Write, Cursor};
+use std::io::{Read, Write, Cursor, Seek};
 
 use ::util::{SGString, UUID};
 use ::packet;
@@ -38,6 +38,20 @@ quick_error! {
     }
 }
 
+quick_error! {
+    #[derive(Debug)]
+    pub enum WriteError {
+        Encrypt(err: sgcrypto::Error) { }
+        IO(err: io::Error) { from() }
+        Message(err: String) { from() }
+        NotImplimented { }
+        Signature(err: sgcrypto::Error) { }
+        State(err: InvalidState) { from() }
+        Type(pkt_type: packet::Type) { }
+        Write(err: protocol::Error) { from() }
+    }
+}
+
 impl Packet {
     fn read(input: &[u8], state: &SGState) -> Result<Self, ReadError> {
         let mut reader = Cursor::new(input);
@@ -60,15 +74,6 @@ impl Packet {
             }
             packet::Type::Message => Ok(Packet::Message)
         }
-    }
-
-    fn decrypt(reader: &mut Read, crypto: &Crypto, protected_payload_length: usize, iv: &[u8]) -> Result<Vec<u8>, ReadError> {
-        let mut protected_buf = Vec::<u8>::new();
-        let mut decrypted_buf = vec![0u8; protected_payload_length];
-        let buf_size = reader.read_to_end(&mut protected_buf)?;
-        &protected_buf.split_off(buf_size - 32);
-        crypto.decrypt(iv, &protected_buf, &mut decrypted_buf).map_err(ReadError::Decrypt)?;
-        Ok(decrypted_buf)
     }
 
     fn read_simple(reader: &mut Read, state: &SGState) -> Result<Self, ReadError> {
@@ -112,7 +117,7 @@ impl Packet {
         }
     }
 
-    fn write(&self, write: &mut Write) -> Result<(), protocol::Error> {
+    fn write(&self, write: &mut Cursor<Vec<u8>>, state: &SGState) -> Result<(), WriteError> {
         match *self {
             Packet::PowerOnRequest(ref header, ref data) => {
                 header.write(write);
@@ -140,8 +145,11 @@ impl Packet {
                 unprotected_data.write(write);
             },
             Packet::ConnectResponse(ref header, ref unprotected_data, ref protected_data) => {
+                let internal_state = state.ensure_connected()?;
                 header.write(write);
                 unprotected_data.write(write);
+                Packet::encrypt(write, protected_data, &internal_state.crypto, &unprotected_data.iv);
+                Packet::sign(write, &internal_state.crypto);
             },
             _ => ()
         }
@@ -149,11 +157,42 @@ impl Packet {
         Ok(())
     }
 
-    fn raw_bytes(&self) -> Result<Vec<u8>, protocol::Error> {
+    fn raw_bytes(&self, state: &SGState) -> Result<Vec<u8>, WriteError> {
         let mut buffer = Cursor::new(Vec::new());
-        self.write(&mut buffer)?;
+        self.write(&mut buffer, state)?;
 
         Ok(buffer.into_inner())
+    }
+
+    fn decrypt(reader: &mut Read, crypto: &Crypto, protected_payload_length: usize, iv: &[u8]) -> Result<Vec<u8>, ReadError> {
+        let mut protected_buf = Vec::<u8>::new();
+        let mut decrypted_buf = vec![0u8; protected_payload_length];
+        let buf_size = reader.read_to_end(&mut protected_buf)?;
+        &protected_buf.split_off(buf_size - 32);
+        crypto.decrypt(iv, &protected_buf, &mut decrypted_buf).map_err(ReadError::Decrypt)?;
+        Ok(decrypted_buf)
+    }
+
+    // TODO: Find a way to make this less restrictive than Cursor
+    fn encrypt<T>(writer: &mut Cursor<Vec<u8>>, data: &T, crypto: &Crypto, iv: &[u8]) -> Result<usize, WriteError> where T: Parcel {
+        let mut buf = Cursor::new(Vec::<u8>::new());
+        data.write(&mut buf)?;
+        let protected_data_len = buf.position() as usize;
+        let aligned_len = Crypto::aligned_len(protected_data_len);
+        let encrypted_buf_start = writer.position() as usize;
+        writer.write(vec![0u8;aligned_len].as_slice())?;
+        let (_, encryption_buf) = writer.get_mut().as_mut_slice().split_at_mut(encrypted_buf_start);
+
+        crypto.encrypt(iv, buf.into_inner().as_slice(), &mut encryption_buf[..]).map_err(WriteError::Encrypt)?;
+        Ok(protected_data_len)
+    }
+
+    fn sign(writer: &mut Cursor<Vec<u8>>, crypto: &Crypto) -> Result<(), WriteError> {
+        let data_size = writer.position() as usize;
+        writer.write(vec![0u8;32].as_slice())?;
+        let (data, signature) = writer.get_mut().as_mut_slice().split_at_mut(data_size);
+        crypto.sign(data, signature);
+        Ok(())
     }
 }
 
@@ -349,7 +388,7 @@ mod test {
         let data = include_bytes!("test/discovery_request");
         let packet = Packet::read(data, &SGState::Disconnected).unwrap();
 
-        assert_eq!(data.to_vec(), packet.raw_bytes().unwrap());
+        assert_eq!(data.to_vec(), packet.raw_bytes(&SGState::Disconnected).unwrap());
     }
 
     #[test]
@@ -377,7 +416,7 @@ mod test {
         let data = include_bytes!("test/discovery_response");
         let packet = Packet::read(data, &SGState::Disconnected).unwrap();
 
-        assert_eq!(data.to_vec(), packet.raw_bytes().unwrap());
+        assert_eq!(data.to_vec(), packet.raw_bytes(&SGState::Disconnected).unwrap());
     }
 
     // #[test]
@@ -410,11 +449,12 @@ mod test {
     // }
 
     #[test]
-    fn parse_connect_response_unprotected_data_works() {
+    fn parse_connect_response_works() {
         let data = include_bytes!("test/connect_response");
         let crypto = ::sgcrypto::test::from_secret(include_bytes!("test/secret"));
         let state = State{ connection_state: ConnectionState::Connecting, pairing_state: PairingState::NotPaired, crypto };
-        let packet = Packet::read(data, &SGState::Connected(state)).unwrap();
+        let sgstate = SGState::Connected(state);
+        let packet = Packet::read(data, &sgstate).unwrap();
 
         match packet {
             Packet::ConnectResponse(header, unprotected_data, protected_data) => {
@@ -430,5 +470,17 @@ mod test {
             },
             _ => panic!("Wrong type")
         }
+    }
+
+    #[test]
+    fn repack_connect_response_works() {
+        let data = include_bytes!("test/connect_response");
+        let crypto = sgcrypto::test::from_secret(include_bytes!("test/secret"));
+        let state = State{ connection_state: ConnectionState::Connecting, pairing_state: PairingState::NotPaired, crypto };
+        let sgstate = SGState::Connected(state);
+        let packet = Packet::read(data, &sgstate).unwrap();
+
+        assert_eq!(data.to_vec(), packet.raw_bytes(&sgstate).unwrap());
+
     }
 }
