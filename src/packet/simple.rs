@@ -62,6 +62,15 @@ impl Packet {
         }
     }
 
+    fn decrypt(reader: &mut Read, crypto: &Crypto, protected_payload_length: usize, iv: &[u8]) -> Result<Vec<u8>, ReadError> {
+        let mut protected_buf = Vec::<u8>::new();
+        let mut decrypted_buf = vec![0u8; protected_payload_length];
+        let buf_size = reader.read_to_end(&mut protected_buf)?;
+        &protected_buf.split_off(buf_size - 32);
+        crypto.decrypt(iv, &protected_buf, &mut decrypted_buf).map_err(ReadError::Decrypt)?;
+        Ok(decrypted_buf)
+    }
+
     fn read_simple(reader: &mut Read, state: &SGState) -> Result<Self, ReadError> {
         let header = SimpleHeader::read(reader)?;
         match header.pkt_type {
@@ -87,15 +96,10 @@ impl Packet {
                 Err(ReadError::NotImplimented)
             },
             packet::Type::ConnectResponse => {
-                // I wish we didn't have to recheck this. Maybe move it into a different method?
                 let internal_state = state.ensure_connected()?;
                 let unprotected = ConnectResponseUnprotectedData::read(reader)?;
                 let protected_len = header.protected_payload_length as usize;
-                let mut protected_buf = Vec::<u8>::new();
-                let mut decrypted_buf = vec![0u8; protected_len];
-                let buf_size = reader.read_to_end(&mut protected_buf)?;
-                &protected_buf.split_off(buf_size - 32);
-                internal_state.crypto.decrypt(&unprotected.iv, &protected_buf, &mut decrypted_buf).map_err(ReadError::Decrypt)?;
+                let decrypted_buf = Packet::decrypt(reader, &internal_state.crypto, protected_len, &unprotected.iv)?;
                 let protected = ConnectResponseProtectedData::from_raw_bytes(&decrypted_buf)?;
 
                 return Ok(Packet::ConnectResponse(
@@ -319,6 +323,7 @@ define_packet!(ConnectResponseProtectedData {
 mod test {
     use super::*;
     use std::string;
+    use std::io::{Cursor, Write};
 
     #[test]
     fn parse_discovery_request_works() {
