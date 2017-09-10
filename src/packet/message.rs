@@ -9,6 +9,104 @@ use ::util::{SGString, UUID};
 use self::protocol::*;
 use self::bit_field::BitField;
 
+#[repr(u16)]
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
+pub enum MessageType {
+    Null = 0x0,
+    Acknowledge = 0x1,
+    Group = 0x2,
+    LocalJoin = 0x3,
+    StopActivity = 0x5,
+    AuxilaryStream = 0x19,
+    ActiveSurfaceChange = 0x1a,
+    Navigate = 0x1b,
+    Json = 0x1c,
+    Tunnel = 0x1d,
+    ConsoleStatus = 0x1e,
+    TitleTextConfiguration = 0x1f,
+    TitleTextInput = 0x20,
+    TitleTextSelection = 0x21,
+    MirroringRequest = 0x22,
+    TitleLaunch = 0x23,
+    StartChannelRequest = 0x26,
+    StartChannelResponse = 0x27,
+    StopChannel = 0x28,
+    System = 0x29,
+    Disconnect = 0x2a,
+    TitleTouch = 0x2e,
+    Accelerometer = 0x2f,
+    Gyrometer = 0x30,
+    Inclinometer = 0x31,
+    Compass = 0x32,
+    Orientation = 0x33,
+    PairedIdentityStateChanged = 0x36,
+    Unsnap = 0x37,
+    GameDvrRecord = 0x38,
+    PowerOff = 0x39,
+    MediaControllerRemoved = 0xf00,
+    MediaCommand = 0xf01,
+    MediaCommandResult = 0xf02,
+    MediaState = 0xf03,
+    Gamepad = 0xf0a,
+    SystemTextConfiguration = 0xf2b,
+    SystemTextInput = 0xf2c,
+    SystemTouch = 0xf2e,
+    SystemTextAck = 0xf34,
+    SystemTextDone = 0xf35
+}
+
+impl MessageType {
+    pub fn from_u16(input: u16) -> Option<Self> {
+        // todo: implement (macro?)
+        Some(MessageType::Null)
+    }
+}
+
+#[derive(Debug)]
+pub enum Message {
+    Null,
+    Acknowledge(AcknowledgeData),
+    Group,
+    LocalJoin(LocalJoinData),
+    StopActivity,
+    AuxiliaryStream(AuxiliaryStreamData),
+    ActiveSurfaceChange(ActiveSurfaceChangeData),
+    Navigate,
+    Json(JsonData),
+    Tunnel,
+    ConsoleStatus(ConsoleStatusData),
+    TitleTextConfiguration(TextConfigurationData),
+    TItleTextInput(TitleTextInputData),
+    TitleTextSelection(TitleTextSelectionData),
+    MirroringRequest,
+    TitleLaunch(TitleLaunchData),
+    StartChannelRequest(StartChannelRequestData),
+    StartChannelResponse(StartChannelResponseData),
+    StopChannel(StopChannelData),
+    System,
+    Disconnect(DisconnectData),
+    TItleTouch(TouchData),
+    Accelerometer(AccelerometerData),
+    Gyrometer(GyrometerData),
+    Inclinometer(InclinometerData),
+    Compass(CompassData),
+    Orientation(OrientationData),
+    PairedIdentityStateChanged(PairedIdentityStateChangedData),
+    Unsnap(UnsnapData),
+    GameDvrRecord(GameDvrRecordData),
+    PowerOff(PowerOffData),
+    MediaControllerRemoved(MediaControllerRemovedData),
+    MediaCommand(MediaCommandData),
+    MediaCommandResult(MediaCommandResultData),
+    MediaState(MediaStateData),
+    Gamepad(GamepadData),
+    SystemTextConfiguration(TextConfigurationData),
+    SystemTextInput(SystemTextInputData),
+    SystemTouch(TouchData),
+    SystemTextAcknowledge(SystemTextAcknowledgeData),
+    SystemTextDone(SystemTextDoneData)
+}
+
 define_composite_type!(MessageHeader {
     pkt_type: Type,
     protected_payload_length: u16,
@@ -31,10 +129,10 @@ impl Header for MessageHeader {
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct MessageHeaderFlags {
-    msg_type: u16,
-    need_ack: bool,
-    is_fragment: bool,
-    version: u16
+    pub msg_type: MessageType,
+    pub need_ack: bool,
+    pub is_fragment: bool,
+    pub version: u16
 }
 
 impl Parcel for MessageHeaderFlags {
@@ -42,7 +140,7 @@ impl Parcel for MessageHeaderFlags {
         let flags = u16::read(read)?;
 
         Ok(MessageHeaderFlags {
-            msg_type: flags.get_bits(0..12),  // todo: enumify
+            msg_type: MessageType::from_u16(flags.get_bits(0..12)).unwrap(),  // todo: enumify
             need_ack: flags.get_bit(13),
             is_fragment: flags.get_bit(14),
             version: flags.get_bits(14..16)
@@ -52,7 +150,7 @@ impl Parcel for MessageHeaderFlags {
     fn write(&self, write: &mut Write) -> Result<(), protocol::Error> {
         let mut data = 0 as u16;
 
-        data.set_bits(0..12, self.msg_type.get_bits(0..12));
+        data.set_bits(0..12, (self.msg_type as u16).get_bits(0..12));
         data.set_bit(13, self.need_ack);
         data.set_bit(14, self.is_fragment);
         data.set_bits(14..16, self.version.get_bits(0..2));
