@@ -52,6 +52,11 @@ quick_error! {
     }
 }
 
+trait Header {
+    fn set_protected_payload_length(&mut self, value: u16);
+    fn set_unprotected_payload_length(&mut self, value: u16);
+}
+
 impl Packet {
     fn read(input: &[u8], state: &SGState) -> Result<Self, ReadError> {
         let mut reader = Cursor::new(input);
@@ -120,25 +125,13 @@ impl Packet {
     fn write(&self, write: &mut Cursor<Vec<u8>>, state: &SGState) -> Result<(), WriteError> {
         match *self {
             Packet::PowerOnRequest(ref header, ref data) => {
-                header.write(write);
-                data.write(write);
+                Packet::write_unprotected(write, header, data)?;
             },
             Packet::DiscoveryRequest(ref header, ref data) => {
-                header.write(write);
-                data.write(write);
-                // Something like this could be possible to get around the size thing.
-                // let mut buffer = Cursor::new(Vec::new());
-                // data.write(&mut buffer);
-
-                // header.pkt_type.write(write);
-                // println!("{:?}", buffer.position());
-                // (buffer.position() as i16).write(write);
-                // header.version.write(write);
-                // write.write_all(buffer.into_inner().as_slice());
+                Packet::write_unprotected(write, header, data)?;
             },
             Packet::DiscoveryResponse(ref header, ref data) => {
-                header.write(write);
-                data.write(write);
+                Packet::write_unprotected(write, header, data)?;
             },
             Packet::ConnectRequest(ref header, ref unprotected_data, ref protected_data) => {
                 header.write(write);
@@ -146,16 +139,45 @@ impl Packet {
             },
             Packet::ConnectResponse(ref header, ref unprotected_data, ref protected_data) => {
                 let internal_state = state.ensure_connected()?;
-                header.write(write);
-                unprotected_data.write(write);
-                Packet::encrypt(write, protected_data, &internal_state.crypto, &unprotected_data.iv);
-                Packet::sign(write, &internal_state.crypto);
+                Packet::write_protected(write, &internal_state.crypto, &unprotected_data.iv, header, unprotected_data, protected_data);
             },
             _ => ()
         }
 
         Ok(())
     }
+
+    fn write_unprotected<THead, TUnprotected>(write: &mut Cursor<Vec<u8>>, header: &THead, unprotected: &TUnprotected) -> Result<(), WriteError>
+        where THead: Header + Clone + Parcel, TUnprotected: Parcel {
+        let mut header_clone = header.clone();
+        header.write(write)?;
+        let header_len = write.position();
+        unprotected.write(write)?;
+        let unprotected_len = write.position() - header_len;
+        header_clone.set_unprotected_payload_length(unprotected_len as u16);
+        write.set_position(0);
+        header.write(write);
+        // TODO: Should this be safe and move the cursor to the end?
+        Ok(())
+    }
+
+    fn write_protected<THead, TUnprotected, TProtected>(write: &mut Cursor<Vec<u8>>, crypto: &Crypto, iv: &[u8], header: &THead, unprotected: &TUnprotected, protected: &TProtected) -> Result<(), WriteError>
+        where THead: Header + Clone + Parcel, TUnprotected: Parcel, TProtected: Parcel  {
+            let mut header_clone = header.clone();
+            header.write(write)?;
+            let header_len = write.position();
+            unprotected.write(write)?;
+            let unprotected_len = write.position() - header_len;
+            let protected_len = Packet::encrypt(write, protected, crypto, iv)? as u64;
+
+            header_clone.set_unprotected_payload_length(unprotected_len as u16);
+            header_clone.set_protected_payload_length(unprotected_len as u16);
+            write.set_position(0);
+            header.write(write);
+            write.set_position(header_len + unprotected_len + Crypto::aligned_len(protected_len as usize) as u64);
+            Packet::sign(write, crypto)?;
+            Ok(())
+        }
 
     fn raw_bytes(&self, state: &SGState) -> Result<Vec<u8>, WriteError> {
         let mut buffer = Cursor::new(Vec::new());
@@ -174,7 +196,7 @@ impl Packet {
     }
 
     // TODO: Find a way to make this less restrictive than Cursor
-    fn encrypt<T>(writer: &mut Cursor<Vec<u8>>, data: &T, crypto: &Crypto, iv: &[u8]) -> Result<usize, WriteError> where T: Parcel {
+    fn encrypt<T>(writer: &mut Cursor<Vec<u8>>, data: &T, crypto: &Crypto, iv: &[u8]) -> Result<u64, WriteError> where T: Parcel {
         let mut buf = Cursor::new(Vec::<u8>::new());
         data.write(&mut buf)?;
         let protected_data_len = buf.position() as usize;
@@ -184,7 +206,7 @@ impl Packet {
         let (_, encryption_buf) = writer.get_mut().as_mut_slice().split_at_mut(encrypted_buf_start);
 
         crypto.encrypt(iv, buf.into_inner().as_slice(), &mut encryption_buf[..]).map_err(WriteError::Encrypt)?;
-        Ok(protected_data_len)
+        Ok(protected_data_len as u64)
     }
 
     fn sign(writer: &mut Cursor<Vec<u8>>, crypto: &Crypto) -> Result<(), WriteError> {
@@ -196,7 +218,7 @@ impl Packet {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct SimpleHeader {
     pub pkt_type: packet::Type,
     pub unprotected_payload_length: u16,
@@ -239,11 +261,34 @@ impl Parcel for SimpleHeader {
     }
 }
 
-// Placeholder
-#[derive(Debug)]
-pub struct MessageHeader {
-    pkt_type: packet::Type
+impl Header for SimpleHeader {
+    fn set_protected_payload_length(&mut self, value: u16) {
+        self.protected_payload_length = value;
+    }
+
+    fn set_unprotected_payload_length(&mut self, value: u16) {
+        self.unprotected_payload_length = value;
+    }
 }
+
+// Placeholder
+#[derive(Debug, Clone)]
+pub struct MessageHeader {
+    pkt_type: packet::Type,
+    protected_payload_length: u16,
+    unprotected_payload_length: u16,
+}
+
+impl Header for MessageHeader {
+    fn set_protected_payload_length(&mut self, value: u16) {
+        self.protected_payload_length = value;
+    }
+
+    fn set_unprotected_payload_length(&mut self, value: u16) {
+        self.unprotected_payload_length = value;
+    }
+}
+
 
 // discovery_request = 'discovery_request' / Struct(
 //     'unk' / Int16ub,
