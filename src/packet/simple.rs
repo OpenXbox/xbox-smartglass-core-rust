@@ -157,7 +157,7 @@ impl Packet {
         header_clone.set_unprotected_payload_length(unprotected_len as u16);
         write.set_position(0);
         header.write(write);
-        // TODO: Should this be safe and move the cursor to the end?
+        // TODO: Should this be safe and move the cursor to the end?q
         Ok(())
     }
 
@@ -168,12 +168,12 @@ impl Packet {
             let header_len = write.position();
             unprotected.write(write)?;
             let unprotected_len = write.position() - header_len;
-            let protected_len = Packet::encrypt(write, protected, crypto, iv)? as u64;
+            let protected_len = Packet::encrypt(write, protected, crypto, iv)?;
 
             header_clone.set_unprotected_payload_length(unprotected_len as u16);
-            header_clone.set_protected_payload_length(unprotected_len as u16);
+            header_clone.set_protected_payload_length(protected_len as u16);
             write.set_position(0);
-            header.write(write);
+            header_clone.write(write);
             write.set_position(header_len + unprotected_len + Crypto::aligned_len(protected_len as usize) as u64);
             Packet::sign(write, crypto)?;
             Ok(())
