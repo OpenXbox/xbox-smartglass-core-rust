@@ -1,6 +1,4 @@
 extern crate protocol;
-extern crate nom;
-
 
 use std::io;
 use std::io::{Read, Write, Cursor, Seek};
@@ -10,7 +8,6 @@ use ::packet;
 use ::sgcrypto;
 use ::sgcrypto::Crypto;
 use ::state::*;
-use self::nom::*;
 use self::protocol::{DynArray, Parcel};
 
 #[derive(Debug)]
@@ -34,7 +31,7 @@ quick_error! {
         Signature(err: sgcrypto::Error) { }
         State(err: InvalidState) { from() }
         Type(pkt_type: packet::Type) { }
-        
+
     }
 }
 
@@ -134,12 +131,12 @@ impl Packet {
                 Packet::write_unprotected(write, header, data)?;
             },
             Packet::ConnectRequest(ref header, ref unprotected_data, ref protected_data) => {
-                header.write(write);
-                unprotected_data.write(write);
+                header.write(write)?;
+                unprotected_data.write(write)?;
             },
             Packet::ConnectResponse(ref header, ref unprotected_data, ref protected_data) => {
                 let internal_state = state.ensure_connected()?;
-                Packet::write_protected(write, &internal_state.crypto, &unprotected_data.iv, header, unprotected_data, protected_data);
+                Packet::write_protected(write, &internal_state.crypto, &unprotected_data.iv, header, unprotected_data, protected_data)?;
             },
             _ => ()
         }
@@ -156,7 +153,7 @@ impl Packet {
         let unprotected_len = write.position() - header_len;
         header_clone.set_unprotected_payload_length(unprotected_len as u16);
         write.set_position(0);
-        header.write(write);
+        header.write(write)?;
         // TODO: Should this be safe and move the cursor to the end?q
         Ok(())
     }
@@ -173,7 +170,7 @@ impl Packet {
             header_clone.set_unprotected_payload_length(unprotected_len as u16);
             header_clone.set_protected_payload_length(protected_len as u16);
             write.set_position(0);
-            header_clone.write(write);
+            header_clone.write(write)?;
             write.set_position(header_len + unprotected_len + Crypto::aligned_len(protected_len as usize) as u64);
             Packet::sign(write, crypto)?;
             Ok(())
@@ -250,12 +247,12 @@ impl Parcel for SimpleHeader {
     }
 
     fn write(&self, write: &mut Write) -> Result<(), protocol::Error> {
-        self.pkt_type.write(write);
-        self.unprotected_payload_length.write(write);
+        self.pkt_type.write(write)?;
+        self.unprotected_payload_length.write(write)?;
         if self.pkt_type.has_protected_data() {
-            self.protected_payload_length.write(write);
+            self.protected_payload_length.write(write)?;
         }
-        self.version.write(write);
+        self.version.write(write)?;
 
         Ok(())
     }
@@ -405,6 +402,9 @@ define_packet!(ConnectResponseProtectedData {
 
 #[cfg(test)]
 mod test {
+    extern crate nom;
+
+    use self::nom::*;
     use super::*;
     use std::string;
     use std::io::{Cursor, Write};

@@ -46,7 +46,7 @@ impl Parcel for Type {
     }
 
     fn write(&self, write: &mut Write) -> Result<(), Error> {
-        (*self as u16).write(write);
+        (*self as u16).write(write)?;
 
         Ok(())
     }

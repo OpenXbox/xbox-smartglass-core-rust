@@ -1,9 +1,7 @@
-extern crate nom;
 extern crate protocol;
 
 use std::io::{Read, Write};
 
-use self::nom::*;
 use self::protocol::{Parcel, DynArray, Error};
 use self::protocol::String as PrefixedString;
 
@@ -48,8 +46,8 @@ impl Parcel for SGString {
     }
 
     fn write(&self, write: &mut Write) -> Result<(), Error> {
-        self.value.write(write);
-        self.terminator.write(write);
+        self.value.write(write)?;
+        self.terminator.write(write)?;
 
         Ok(())
     }
@@ -81,7 +79,7 @@ impl Parcel for UUID {
 
     fn write(&self, write: &mut Write) -> Result<(), Error> {
         let data = DynArray::<u16, u8>::new(self.value.clone().into_bytes());
-        data.write(write);
+        data.write(write)?;
         Ok(())
     }
 }

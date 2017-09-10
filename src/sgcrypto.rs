@@ -3,8 +3,6 @@ extern crate ring;
 extern crate untrusted;
 extern crate crypto;
 
-use std;
-
 use self::rustc_serialize::hex::FromHex;
 use self::ring::{agreement, hmac, rand, digest};
 use self::ring::error::Unspecified;
@@ -78,7 +76,7 @@ impl Crypto {
         let public_key = &mut public_key[..private_key.public_key_len()];
         // TODO: error handling
         private_key.compute_public_key(public_key);
-        
+
         let kdf =  |secret: &[u8]| {
             // TODO: error handling
             let salted_secret = secret.to_vec();
@@ -89,7 +87,7 @@ impl Crypto {
             Ok((*derived_key.as_ref()).to_vec())
         };
 
-        let derived_key = agreement::agree_ephemeral(private_key, &agreement::ECDH_P256, 
+        let derived_key = agreement::agree_ephemeral(private_key, &agreement::ECDH_P256,
             untrusted_foreign_key, ring::error::Unspecified, kdf).unwrap();
 
         let mut pub_key = [0u8; 40];
@@ -100,13 +98,13 @@ impl Crypto {
         &aes_key.clone_from_slice(&derived_key[0..16]);
         &iv_key.clone_from_slice(&derived_key[16..32]);
         &hmac_key.clone_from_slice(&derived_key[32..64]);
-        
+
         Crypto{pub_key, aes_key, iv_key, hmac_key}
     }
 
     /// Calculates the number of bytes needed to hold the input after padding is applied
     pub fn aligned_len(len: usize) -> usize {
-        if (len % 16 == 0) {
+        if len % 16 == 0 {
            len
         } else {
             len + (16 - len % 16)
@@ -132,7 +130,7 @@ impl Crypto {
     /// # Arguments
     /// * iv - the IV used during encryption (must be exactly 16 bytes)
     /// * ciphertext - the ciphertext to be decrypted
-    /// * plaintext - the result of the decryption (length is awkward here, will need to fix) 
+    /// * plaintext - the result of the decryption (length is awkward here, will need to fix)
     pub fn decrypt(&self, iv: &[u8], ciphertext: &[u8], plaintext: &mut [u8]) -> Result<BufferResult, Error> {
         let mut read_buf = RefReadBuffer::new(ciphertext);
         let mut write_buf = RefWriteBuffer::new(plaintext);
@@ -168,9 +166,9 @@ pub mod test {
     use super::*;
 
     fn new_crypto() -> Crypto {
-        let foreignPublicKey = "041db1e7943878b28c773228ebdcfb05b985be4a386a55f50066231360785f61b60038caf182d712d86c8a28a0e7e2733a0391b1169ef2905e4e21555b432b262d"
+        let foreign_public_key = "041db1e7943878b28c773228ebdcfb05b985be4a386a55f50066231360785f61b60038caf182d712d86c8a28a0e7e2733a0391b1169ef2905e4e21555b432b262d"
             .from_hex().unwrap();
-        Crypto::new(&foreignPublicKey[..])
+        Crypto::new(&foreign_public_key[..])
     }
 
     pub fn from_secret(secret: &[u8]) -> Crypto {
@@ -184,7 +182,7 @@ pub mod test {
         &aes_key.clone_from_slice(&secret[0..16]);
         &iv_key.clone_from_slice(&secret[16..32]);
         &hmac_key.clone_from_slice(&secret[32..64]);
-        
+
         Crypto{pub_key: [0u8; 40], aes_key, iv_key, hmac_key}
     }
 
@@ -252,10 +250,10 @@ pub mod test {
         let enc_result = crypto.encrypt(&iv[..], &plaintext[..], &mut ciphertext[..]);
         assert!(!enc_result.is_err());
 
-        let mut newPlaintext = vec![0u8; plaintext.len()];
-        let dec_result = crypto.decrypt(&iv[..], &ciphertext[..], &mut newPlaintext[..]);
+        let mut new_plaintext = vec![0u8; plaintext.len()];
+        let dec_result = crypto.decrypt(&iv[..], &ciphertext[..], &mut new_plaintext[..]);
         assert!(!dec_result.is_err());
-        assert_eq!(plaintext, newPlaintext);
+        assert_eq!(plaintext, new_plaintext);
     }
 
     #[test]
