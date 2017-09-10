@@ -13,6 +13,12 @@ pub struct SGString {
     terminator: u8
 }
 
+/// Represents an smartglass string
+///
+/// A smartglass string is a null-terminated pascal string.
+/// That is, it's serialized form has a 16-bit size,
+/// followed `size` UTF-8 bytes,
+/// followed by a null byte
 impl SGString {
     /// Creates an `SGString` from a rust `String`
     pub fn from_str(string: String) -> SGString {
