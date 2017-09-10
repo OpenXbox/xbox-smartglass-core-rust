@@ -440,9 +440,6 @@ define_packet!(ConnectResponseProtectedData {
 
 #[cfg(test)]
 mod test {
-    extern crate nom;
-
-    use self::nom::*;
     use super::*;
     use std::string;
     use std::io::{Cursor, Write};
