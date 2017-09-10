@@ -1,6 +1,6 @@
 extern crate protocol;
-extern crate bit_field;
 
+pub mod simple;
 pub mod message;
 
 use std::io;
@@ -9,10 +9,10 @@ use std::io::{Read, Write, Cursor};
 use ::state::*;
 use ::sgcrypto;
 use ::sgcrypto::Crypto;
+use ::packet::simple::*;
 use ::packet::message::*;
 
 use self::protocol::*;
-use self::bit_field::BitField;
 
 quick_error! {
     #[derive(Debug)]
@@ -261,113 +261,6 @@ impl Packet {
         writer.write(vec![0u8;32].as_slice())?;
         let (data, signature) = writer.get_mut().as_mut_slice().split_at_mut(data_size);
         crypto.sign(data, signature);
-        Ok(())
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct SimpleHeader {
-    pub pkt_type: Type,
-    pub unprotected_payload_length: u16,
-    pub protected_payload_length: u16, // This is only sometimes here!
-    pub version: u16
-}
-
-impl SimpleHeader {
-    fn new(pkt_type: Type, version: u16) -> Result<Self, protocol::Error> {
-        Ok(SimpleHeader {
-            pkt_type: pkt_type,
-            unprotected_payload_length: 0,
-            protected_payload_length: 0,
-            version: version
-        })
-    }
-}
-
-impl Parcel for SimpleHeader {
-    fn read(read: &mut Read) -> Result<Self, protocol::Error> {
-        let pkt_type = Type::read(read)?;
-
-        Ok(SimpleHeader {
-            pkt_type: pkt_type,
-            unprotected_payload_length: u16::read(read)?,
-            protected_payload_length: if pkt_type.has_protected_data() { u16::read(read)? } else { 0 },
-            version: u16::read(read)?
-        })
-    }
-
-    fn write(&self, write: &mut Write) -> Result<(), protocol::Error> {
-        self.pkt_type.write(write)?;
-        self.unprotected_payload_length.write(write)?;
-        if self.pkt_type.has_protected_data() {
-            self.protected_payload_length.write(write)?;
-        }
-        self.version.write(write)?;
-
-        Ok(())
-    }
-}
-
-impl Header for SimpleHeader {
-    fn set_protected_payload_length(&mut self, value: u16) {
-        self.protected_payload_length = value;
-    }
-
-    fn set_unprotected_payload_length(&mut self, value: u16) {
-        self.unprotected_payload_length = value;
-    }
-}
-
-define_composite_type!(MessageHeader {
-    pkt_type: Type,
-    protected_payload_length: u16,
-    sequence_number: u32,
-    target_participant_id: u32,
-    source_participant_id: u32,
-    flags: MessageHeaderFlags,
-    channel_id: u64
-});
-
-impl Header for MessageHeader {
-    fn set_protected_payload_length(&mut self, value: u16) {
-        self.protected_payload_length = value;
-    }
-
-    fn set_unprotected_payload_length(&mut self, value: u16) {
-        return
-    }
-}
-
-#[derive(Debug, Clone, PartialEq)]
-pub struct MessageHeaderFlags {
-    msg_type: u16,
-    need_ack: bool,
-    is_fragment: bool,
-    version: u16
-}
-
-impl Parcel for MessageHeaderFlags {
-    fn read(read: &mut Read) -> Result<Self, protocol::Error> {
-        let flags = u16::read(read)?;
-
-        Ok(MessageHeaderFlags {
-            msg_type: flags.get_bits(0..12),  // todo: enumify
-            need_ack: flags.get_bit(13),
-            is_fragment: flags.get_bit(14),
-            version: flags.get_bits(14..16)
-        })
-    }
-
-    fn write(&self, write: &mut Write) -> Result<(), protocol::Error> {
-        let mut data = 0 as u16;
-
-        data.set_bits(0..12, self.msg_type.get_bits(0..12));
-        data.set_bit(13, self.need_ack);
-        data.set_bit(14, self.is_fragment);
-        data.set_bits(14..16, self.version.get_bits(0..2));
-
-        data.write(write)?;
-
         Ok(())
     }
 }
