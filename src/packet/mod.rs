@@ -96,7 +96,7 @@ enum Packet {
     DiscoveryResponse(SimpleHeader, DiscoveryResponseData),
     ConnectRequest(SimpleHeader, ConnectRequestUnprotectedData, ConnectRequestProtectedData),
     ConnectResponse(SimpleHeader, ConnectResponseUnprotectedData, ConnectResponseProtectedData),
-    Message
+    Message(MessageHeader)
 }
 
 trait Header {
@@ -124,7 +124,12 @@ impl Packet {
                 internal_state.crypto.verify(&input[..data_len], &input[data_len..]).map_err(ReadError::Signature)?;
                 Packet::read_simple(&mut reader, &state)
             }
-            Type::Message => Ok(Packet::Message)
+            Type::Message => {
+                let internal_state = state.ensure_connected()?;
+                let data_len = input.len() - 32;
+                internal_state.crypto.verify(&input[..data_len], &input[data_len..]).map_err(ReadError::Signature)?;
+                Packet::read_message(&mut reader, &state)
+            }
         }
     }
 
@@ -167,6 +172,12 @@ impl Packet {
             }
             _ => Err(ReadError::Type(header.pkt_type))
         }
+    }
+
+    fn read_message(reader: &mut Read, state: &SGState) -> Result<Self, ReadError> {
+        let header = MessageHeader::read(reader)?;
+
+        Ok(Packet::Message(header))
     }
 
     fn write(&self, write: &mut Cursor<Vec<u8>>, state: &SGState) -> Result<(), WriteError> {
