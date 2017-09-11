@@ -162,12 +162,193 @@ impl Packet {
     }
 
     fn read_message(reader: &mut Read, state: &SGState) -> Result<Self, ReadError> {
-        let header = MessageHeader::read(reader)?;
+        let internal_state = state.ensure_connected()?;
 
-        // todo: implement
-        match header.flags.msg_type {
-            _ => Ok(Packet::Message(header, Message::Null))
-        }
+        let header_buf: [u8; 26] = Parcel::read(reader)?;
+        let header = MessageHeader::from_raw_bytes(&header_buf)?;
+
+        let mut iv = [0u8; 16];
+        internal_state.crypto.generate_iv(&header_buf[..16], &mut iv);
+        let decrypted_buf = Packet::decrypt(reader, &internal_state.crypto, header.protected_payload_length as usize, &iv)?;
+
+        // // todo: implement
+        let message = match header.flags.msg_type {
+            MessageType::Acknowledge => {
+                Message::Acknowledge(
+                    AcknowledgeData::from_raw_bytes(&decrypted_buf)?
+                )
+            },
+            MessageType::LocalJoin => {
+                Message::LocalJoin(
+                    LocalJoinData::from_raw_bytes(&decrypted_buf)?
+                )
+            },
+            MessageType::AuxiliaryStream => {
+                Message::AuxiliaryStream(
+                    AuxiliaryStreamData::from_raw_bytes(&decrypted_buf)?
+                )
+            },
+            MessageType::ActiveSurfaceChange => {
+                Message::ActiveSurfaceChange(
+                    ActiveSurfaceChangeData::from_raw_bytes(&decrypted_buf)?
+                )
+            },
+            MessageType::Json => {
+                Message::Json(
+                        JsonData::from_raw_bytes(&decrypted_buf)?
+                    )
+            },
+            MessageType::ConsoleStatus => {
+                Message::ConsoleStatus(
+                    ConsoleStatusData::from_raw_bytes(&decrypted_buf)?
+                )
+            },
+            MessageType::TitleTextConfiguration => {
+                Message::TitleTextConfiguration(
+                    TextConfigurationData::from_raw_bytes(&decrypted_buf)?
+                )
+            },
+            MessageType::TitleTextInput => {
+                Message::TitleTextInput(
+                    TitleTextInputData::from_raw_bytes(&decrypted_buf)?
+                )
+            },
+            MessageType::TitleTextSelection => {
+                Message::TitleTextSelection(
+                    TitleTextSelectionData::from_raw_bytes(&decrypted_buf)?
+                )
+            },
+            MessageType::TitleLaunch => {
+                Message::TitleLaunch(
+                    TitleLaunchData::from_raw_bytes(&decrypted_buf)?
+                )
+            },
+            MessageType::StartChannelRequest => {
+                Message::StartChannelRequest(
+                    StartChannelRequestData::from_raw_bytes(&decrypted_buf)?
+                )
+            },
+            MessageType::StartChannelResponse => {
+                Message::StartChannelResponse(
+                    StartChannelResponseData::from_raw_bytes(&decrypted_buf)?
+                )
+            },
+            MessageType::StopChannel => {
+                Message::StopChannel(
+                    StopChannelData::from_raw_bytes(&decrypted_buf)?
+                )
+            },
+            MessageType::Disconnect => {
+                Message::Disconnect(
+                    DisconnectData::from_raw_bytes(&decrypted_buf)?
+                )
+            },
+            MessageType::TitleTouch => {
+                Message::TitleTouch(
+                    TouchData::from_raw_bytes(&decrypted_buf)?
+                )
+            },
+            MessageType::Accelerometer => {
+                Message::Accelerometer(
+                    AccelerometerData::from_raw_bytes(&decrypted_buf)?
+                )
+            },
+            MessageType::Gyrometer => {
+                Message::Gyrometer(
+                    GyrometerData::from_raw_bytes(&decrypted_buf)?
+                )
+            },
+            MessageType::Inclinometer => {
+                Message::Inclinometer(
+                    InclinometerData::from_raw_bytes(&decrypted_buf)?
+                )
+            },
+            MessageType::Compass => {
+                Message::Compass(
+                    CompassData::from_raw_bytes(&decrypted_buf)?
+                )
+            },
+            MessageType::Orientation => {
+                Message::Orientation(
+                    OrientationData::from_raw_bytes(&decrypted_buf)?
+                )
+            },
+            MessageType::PairedIdentityStateChanged => {
+                Message::PairedIdentityStateChanged(
+                    PairedIdentityStateChangedData::from_raw_bytes(&decrypted_buf)?
+                )
+            },
+            MessageType::Unsnap => {
+                Message::Unsnap(
+                    UnsnapData::from_raw_bytes(&decrypted_buf)?
+                )
+            },
+            MessageType::GameDvrRecord => {
+                Message::GameDvrRecord(
+                    GameDvrRecordData::from_raw_bytes(&decrypted_buf)?
+                )
+            },
+            MessageType::PowerOff => {
+                Message::PowerOff(
+                    PowerOffData::from_raw_bytes(&decrypted_buf)?
+                )
+            },
+            MessageType::MediaControllerRemoved => {
+                Message::MediaControllerRemoved(
+                    MediaControllerRemovedData::from_raw_bytes(&decrypted_buf)?
+                )
+            },
+            MessageType::MediaCommand => {
+                Message::MediaCommand(
+                    MediaCommandData::from_raw_bytes(&decrypted_buf)?
+                )
+            },
+            MessageType::MediaCommandResult => {
+                Message::MediaCommandResult(
+                    MediaCommandResultData::from_raw_bytes(&decrypted_buf)?
+                )
+            },
+            MessageType::MediaState => {
+                Message::MediaState(
+                    MediaStateData::from_raw_bytes(&decrypted_buf)?
+                )
+            },
+            MessageType::Gamepad => {
+                Message::Gamepad(
+                    GamepadData::from_raw_bytes(&decrypted_buf)?
+                )
+            },
+            MessageType::SystemTextConfiguration => {
+                Message::SystemTextConfiguration(
+                    TextConfigurationData::from_raw_bytes(&decrypted_buf)?
+                )
+            },
+            MessageType::SystemTextInput => {
+                Message::SystemTextInput(
+                    SystemTextInputData::from_raw_bytes(&decrypted_buf)?
+                )
+            },
+            MessageType::SystemTouch => {
+                Message::SystemTouch(
+                    TouchData::from_raw_bytes(&decrypted_buf)?
+                )
+            },
+            MessageType::SystemTextAcknowledge => {
+                Message::SystemTextAcknowledge(
+                    SystemTextAcknowledgeData::from_raw_bytes(&decrypted_buf)?
+                )
+            },
+            MessageType::SystemTextDone => {
+                Message::SystemTextDone(
+                    SystemTextDoneData::from_raw_bytes(&decrypted_buf)?
+                )
+            }
+            _ => Message::Null
+        };
+
+        Ok(Packet::Message(
+            header, message
+        ))
     }
 
     fn write(&self, write: &mut Cursor<Vec<u8>>, state: &SGState) -> Result<(), WriteError> {

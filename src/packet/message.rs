@@ -19,7 +19,7 @@ pub enum MessageType {
     Group = 0x2,
     LocalJoin = 0x3,
     StopActivity = 0x5,
-    AuxilaryStream = 0x19,
+    AuxiliaryStream = 0x19,
     ActiveSurfaceChange = 0x1a,
     Navigate = 0x1b,
     Json = 0x1c,
@@ -53,7 +53,7 @@ pub enum MessageType {
     SystemTextConfiguration = 0xf2b,
     SystemTextInput = 0xf2c,
     SystemTouch = 0xf2e,
-    SystemTextAck = 0xf34,
+    SystemTextAcknowledge = 0xf34,
     SystemTextDone = 0xf35
 }
 
@@ -83,7 +83,7 @@ pub enum Message {
     Tunnel,
     ConsoleStatus(ConsoleStatusData),
     TitleTextConfiguration(TextConfigurationData),
-    TItleTextInput(TitleTextInputData),
+    TitleTextInput(TitleTextInputData),
     TitleTextSelection(TitleTextSelectionData),
     MirroringRequest,
     TitleLaunch(TitleLaunchData),
@@ -92,7 +92,7 @@ pub enum Message {
     StopChannel(StopChannelData),
     System,
     Disconnect(DisconnectData),
-    TItleTouch(TouchData),
+    TitleTouch(TouchData),
     Accelerometer(AccelerometerData),
     Gyrometer(GyrometerData),
     Inclinometer(InclinometerData),
@@ -677,3 +677,46 @@ define_packet!(SystemTextDoneData {
     flags: u32,
     unk: u32
 });
+
+#[cfg(test)]
+mod test {
+    use super::*;
+    use ::packet;
+    use ::state::*;
+    use ::sgcrypto;
+
+    #[test]
+    fn parse_ack_works() {
+        let data = include_bytes!("test/acknowledge");
+        let crypto = ::sgcrypto::test::from_secret(include_bytes!("test/secret"));
+        let state = State{ connection_state: ConnectionState::Connecting, pairing_state: PairingState::NotPaired, crypto };
+        let sgstate = SGState::Connected(state);
+        let packet = packet::Packet::read(data, &sgstate).unwrap();
+
+        match packet {
+            packet::Packet::Message(header, message) => {
+                assert_eq!(header.pkt_type, packet::Type::Message);
+                assert_eq!(header.protected_payload_length, 16);
+                assert_eq!(header.sequence_number, 1);
+                assert_eq!(header.target_participant_id, 31);
+                assert_eq!(header.source_participant_id, 0);
+                assert_eq!(header.flags.msg_type, MessageType::Acknowledge);
+                assert_eq!(header.flags.need_ack, false);
+                assert_eq!(header.flags.is_fragment, false);
+                assert_eq!(header.flags.version, 2);
+                assert_eq!(header.channel_id, 0x1000000000000000);
+
+                match message {
+                    Message::Acknowledge(data) => {
+                        assert_eq!(data.low_watermark, 0);
+                        assert_eq!(data.processed_list.elements, [1]);
+                        assert_eq!(data.rejected_list.elements, []);
+                    },
+                    _ => panic!("Wrong type")
+                }
+
+            },
+            _ => panic!("Wrong type")
+        }
+    }
+}
