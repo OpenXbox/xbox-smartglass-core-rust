@@ -1,5 +1,6 @@
 extern crate protocol;
 extern crate bit_field;
+extern crate num_traits;
 
 use std::io::{Read, Write};
 
@@ -8,9 +9,10 @@ use ::util::{SGString, UUID};
 
 use self::protocol::*;
 use self::bit_field::BitField;
+use self::num_traits::FromPrimitive;
 
 #[repr(u16)]
-#[derive(Debug, PartialEq, Eq, Copy, Clone)]
+#[derive(Primitive, PartialEq, Eq, Copy, Clone, Debug)]
 pub enum MessageType {
     Null = 0x0,
     Acknowledge = 0x1,
@@ -55,10 +57,15 @@ pub enum MessageType {
     SystemTextDone = 0xf35
 }
 
-impl MessageType {
-    pub fn from_u16(input: u16) -> Option<Self> {
-        // todo: implement (macro?)
-        Some(MessageType::Null)
+impl Parcel for MessageType {
+    fn read(read: &mut Read) -> Result<Self, Error> {
+        Ok(MessageType::from_u16(u16::read(read)?).unwrap())
+    }
+
+    fn write(&self, write: &mut Write) -> Result<(), Error> {
+        (*self as u16).write(write)?;
+
+        Ok(())
     }
 }
 

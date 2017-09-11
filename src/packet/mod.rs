@@ -1,4 +1,5 @@
 extern crate protocol;
+extern crate num_traits;
 
 pub mod simple;
 pub mod message;
@@ -13,6 +14,7 @@ use ::packet::simple::*;
 use ::packet::message::*;
 
 use self::protocol::*;
+use self::num_traits::FromPrimitive;
 
 quick_error! {
     #[derive(Debug)]
@@ -25,7 +27,6 @@ quick_error! {
         Signature(err: sgcrypto::Error) { }
         State(err: InvalidState) { from() }
         Type(pkt_type: Type) { }
-
     }
 }
 
@@ -43,31 +44,17 @@ quick_error! {
     }
 }
 
-#[repr(u16)]
-#[derive(Debug, PartialEq, Eq, Copy, Clone)]
+#[derive(Primitive, PartialEq, Eq, Copy, Clone, Debug)]
 pub enum Type {
     ConnectRequest = 0xCC00,
     ConnectResponse = 0xCC01,
     DiscoveryRequest = 0xDD00,
     DiscoveryResponse = 0xDD01,
     PowerOnRequest = 0xDD02,
-    Message = 0xD00D,
+    Message = 0xD00D
 }
 
 impl Type {
-    // This could probably be a macro
-    pub fn from_u16(input: u16) -> Option<Type> {
-        match input {
-            x if x == Type::ConnectRequest as u16 => Some(Type::ConnectRequest),
-            x if x == Type::ConnectResponse as u16 => Some(Type::ConnectResponse),
-            x if x == Type::DiscoveryRequest as u16 => Some(Type::DiscoveryRequest),
-            x if x == Type::DiscoveryResponse as u16 => Some(Type::DiscoveryResponse),
-            x if x == Type::PowerOnRequest as u16 => Some(Type::PowerOnRequest),
-            x if x == Type::Message as u16 => Some(Type::Message),
-            _ => None
-        }
-    }
-
     pub fn has_protected_data(&self) -> bool {
         match *self {
             Type::ConnectRequest |

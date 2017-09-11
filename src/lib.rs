@@ -2,6 +2,9 @@
 extern crate protocol;
 #[macro_use(quick_error)]
 extern crate quick_error;
+#[macro_use]
+extern crate enum_primitive_derive;
+extern crate num_traits;
 
 
 pub mod sgcrypto;
