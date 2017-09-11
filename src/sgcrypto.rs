@@ -139,6 +139,19 @@ impl Crypto {
         Ok(res)
     }
 
+    /// Encryptes the plaintext using the IV key
+    ///
+    /// # Arguments
+    /// * plaintext - the plaintext to be encrypted
+    /// * ciphertext - the result of the encryption
+    pub fn generate_iv(&self, plaintext: &[u8], ciphertext: &mut [u8]) -> Result<BufferResult, Error> {
+        let mut read_buf = RefReadBuffer::new(plaintext);
+        let mut write_buf = RefWriteBuffer::new(ciphertext);
+        let mut encryptor = aes::cbc_encryptor(KeySize::KeySize128, &self.iv_key, &[0u8;16], blockmodes::PkcsPadding);
+        let res = encryptor.encrypt(&mut read_buf, &mut write_buf, true)?;
+        Ok(res)
+    }
+
     /// Creates a signature for a slice
     ///
     /// # Arguments
@@ -254,6 +267,17 @@ pub mod test {
         let dec_result = crypto.decrypt(&iv[..], &ciphertext[..], &mut new_plaintext[..]);
         assert!(!dec_result.is_err());
         assert_eq!(plaintext, new_plaintext);
+    }
+
+    #[test]
+    fn generate_iv_works() {
+        let crypto = from_secret(include_bytes!("packet/test/secret"));
+        let plaintext = include_bytes!("packet/test/acknowledge");
+        let mut iv = [0u8;16];
+
+        let enc_result = crypto.generate_iv(&plaintext[..16], &mut iv);
+        assert!(!enc_result.is_err());
+        assert_eq!(iv, [42, 217, 39, 130, 232, 107, 46, 94, 109, 204, 111, 28, 45, 171, 13, 77]);
     }
 
     #[test]
