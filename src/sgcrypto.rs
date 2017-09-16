@@ -286,7 +286,7 @@ pub mod test {
     #[test]
     fn generate_iv_works() {
         let crypto = from_secret(include_bytes!("packet/test/secret"));
-        let plaintext = include_bytes!("packet/test/acknowledge");
+        let plaintext = include_bytes!("packet/test/message/acknowledge");
         let mut iv = [0u8;16];
 
         let enc_result = crypto.generate_iv(&plaintext[..16], &mut iv);
