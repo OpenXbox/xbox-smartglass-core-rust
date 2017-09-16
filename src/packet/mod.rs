@@ -35,6 +35,7 @@ quick_error! {
     pub enum WriteError {
         Encrypt(err: sgcrypto::Error) { }
         IO(err: io::Error) { from() }
+        IV(err: sgcrypto::Error) { from() }
         Message(err: String) { from() }
         NotImplimented { }
         Signature(err: sgcrypto::Error) { }
@@ -370,7 +371,10 @@ impl Packet {
                 let internal_state = state.ensure_connected()?;
                 Packet::write_protected(write, &internal_state.crypto, &unprotected_data.iv, header, unprotected_data, protected_data)?;
             },
-            _ => ()
+            Packet::Message(ref header, ref message) =>  {
+                let internal_state = state.ensure_connected()?;
+                Packet::write_message(write, &internal_state.crypto, header, message)?;
+            }
         }
 
         Ok(())
@@ -407,6 +411,32 @@ impl Packet {
             Packet::sign(write, crypto)?;
             Ok(())
         }
+
+    fn write_message(write: &mut Cursor<Vec<u8>>, crypto: &Crypto, header: &MessageHeader, message: &Message) -> Result<(), WriteError> {
+        // Calculate Lengths
+        let mut header_clone = header.clone();
+        header.write(write)?;
+        let header_len = write.position();
+        message.write(write)?;
+        let protected_len = write.position() - header_len;
+
+        // Serialize correct header
+        header_clone.set_protected_payload_length(protected_len as u16);
+        write.set_position(0);
+        header_clone.write(write)?;
+
+        // Generate IV
+        let mut iv = [0u8;16];
+        crypto.generate_iv(&write.get_ref()[..16], &mut iv[..])?;
+
+        // Serialize encrypted message
+        Packet::encrypt(write, message, crypto, &iv)?;
+
+        // Sign
+        Packet::sign(write, crypto)?;
+
+        Ok(())
+    }
 
     fn raw_bytes(&self, state: &SGState) -> Result<Vec<u8>, WriteError> {
         let mut buffer = Cursor::new(Vec::new());

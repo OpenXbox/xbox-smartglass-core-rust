@@ -114,6 +114,21 @@ pub enum Message {
     SystemTextDone(SystemTextDoneData)
 }
 
+impl Parcel for Message {
+        fn read(read: &mut Read) -> Result<Self, protocol::Error> {
+            Err(protocol::Error::from_kind(protocol::ErrorKind::UnknownPacketId))
+        }
+
+        fn write(&self, write: &mut Write) -> Result<(), protocol::Error> {
+            match *self {
+                // TODO: finish implementation
+                Message::Acknowledge(ref data) => data.write(write),
+                _ => Err(protocol::Error::from_kind(protocol::ErrorKind::UnknownPacketId))
+
+            }
+        }
+}
+
 define_composite_type!(MessageHeader {
     pkt_type: Type,
     protected_payload_length: u16,
@@ -718,5 +733,17 @@ mod test {
             },
             _ => panic!("Wrong type")
         }
+    }
+
+    #[test]
+    fn repack_ack_works() {
+        let data = include_bytes!("test/acknowledge");
+        let crypto = ::sgcrypto::test::from_secret(include_bytes!("test/secret"));
+        let state = State{ connection_state: ConnectionState::Connecting, pairing_state: PairingState::NotPaired, crypto };
+        let sgstate = SGState::Connected(state);
+        let packet = packet::Packet::read(data, &sgstate).unwrap();
+
+        assert_eq!(data.to_vec(), packet.raw_bytes(&sgstate).unwrap());
+
     }
 }
