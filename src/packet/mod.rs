@@ -3,6 +3,7 @@ extern crate num_traits;
 
 pub mod simple;
 pub mod message;
+pub mod factory;
 
 use std::io;
 use std::io::{Read, Write, Cursor};
@@ -78,7 +79,7 @@ impl Parcel for Type {
 }
 
 #[derive(Debug)]
-enum Packet {
+pub enum Packet {
     PowerOnRequest(SimpleHeader, PowerOnRequestData),
     DiscoveryRequest(SimpleHeader, DiscoveryRequestData),
     DiscoveryResponse(SimpleHeader, DiscoveryResponseData),

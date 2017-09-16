@@ -77,7 +77,7 @@ define_packet!(DiscoveryResponseData {
 
 // We don't have test data for this
 define_packet!(PowerOnRequestData {
-    liveid: SGString
+    live_id: SGString
 });
 
 define_packet!(ConnectRequestUnprotectedData {
