@@ -15,7 +15,7 @@ pub fn power_on_request(live_id: String) -> Packet {
 }
 
 pub fn discovery_request(client_type: u32) -> Packet {
-    let header = SimpleHeader::new(Type::DiscoveryRequest, 2);
+    let header = SimpleHeader::new(Type::DiscoveryRequest, 0);
     let data = DiscoveryRequestData {
         unk: 0,
         client_type,
