@@ -21,6 +21,7 @@ quick_error! {
             from(SymmetricCipherError)
             from(Unspecified)
          }
+         BufferOverflow { }
     }
 }
 
@@ -117,12 +118,19 @@ impl Crypto {
     /// * iv - the IV for the encryption (must be exactly 16 bytes)
     /// * plaintext - the plaintext to be encrypted
     /// * ciphertext - the result of the encryption (use Crypto::aligned_len(plaintext) to determine the size this slice must be)
-    pub fn encrypt(&self, iv: &[u8], plaintext: &[u8], ciphertext: &mut [u8]) -> Result<BufferResult, Error> {
+    pub fn encrypt(&self, iv: &[u8], plaintext: &[u8], ciphertext: &mut [u8]) -> Result<(), Error> {
         let mut read_buf = RefReadBuffer::new(plaintext);
         let mut write_buf = RefWriteBuffer::new(ciphertext);
-        let mut encryptor = aes::cbc_encryptor(KeySize::KeySize128, &self.aes_key, iv, blockmodes::PkcsPadding);
+        let mut encryptor = 
+        match plaintext.len() % 16 {
+            0 => aes::cbc_encryptor(KeySize::KeySize128, &self.aes_key, iv, blockmodes::NoPadding),
+            _ => aes::cbc_encryptor(KeySize::KeySize128, &self.aes_key, iv, blockmodes::PkcsPadding)
+        };
         let res = encryptor.encrypt(&mut read_buf, &mut write_buf, true)?;
-        Ok(res)
+        match res {
+            BufferResult::BufferOverflow => Err(Error::BufferOverflow),
+            _ => Ok(())
+        }
     }
 
     /// Decrypts a ciphertext into a plaintext
@@ -131,12 +139,15 @@ impl Crypto {
     /// * iv - the IV used during encryption (must be exactly 16 bytes)
     /// * ciphertext - the ciphertext to be decrypted
     /// * plaintext - the result of the decryption (length is awkward here, will need to fix)
-    pub fn decrypt(&self, iv: &[u8], ciphertext: &[u8], plaintext: &mut [u8]) -> Result<BufferResult, Error> {
+    pub fn decrypt(&self, iv: &[u8], ciphertext: &[u8], plaintext: &mut [u8]) -> Result<(), Error> {
         let mut read_buf = RefReadBuffer::new(ciphertext);
         let mut write_buf = RefWriteBuffer::new(plaintext);
         let mut decryptor = aes::cbc_decryptor(KeySize::KeySize128, &self.aes_key, iv, blockmodes::PkcsPadding);
         let res = decryptor.decrypt(&mut read_buf, &mut write_buf, true)?;
-        Ok(res)
+        match res {
+            BufferResult::BufferOverflow => Err(Error::BufferOverflow),
+            _ => Ok(())
+        }
     }
 
     /// Encryptes the plaintext using the IV key
@@ -144,12 +155,15 @@ impl Crypto {
     /// # Arguments
     /// * plaintext - the plaintext to be encrypted
     /// * ciphertext - the result of the encryption
-    pub fn generate_iv(&self, plaintext: &[u8], ciphertext: &mut [u8]) -> Result<BufferResult, Error> {
+    pub fn generate_iv(&self, plaintext: &[u8], ciphertext: &mut [u8]) -> Result<(), Error> {
         let mut read_buf = RefReadBuffer::new(plaintext);
         let mut write_buf = RefWriteBuffer::new(ciphertext);
-        let mut encryptor = aes::cbc_encryptor(KeySize::KeySize128, &self.iv_key, &[0u8;16], blockmodes::PkcsPadding);
+        let mut encryptor = aes::cbc_encryptor(KeySize::KeySize128, &self.iv_key, &[0u8;16], blockmodes::NoPadding);
         let res = encryptor.encrypt(&mut read_buf, &mut write_buf, true)?;
-        Ok(res)
+        match res {
+            BufferResult::BufferOverflow => Err(Error::BufferOverflow),
+            _ => Ok(())
+        }
     }
 
     /// Creates a signature for a slice
