@@ -121,9 +121,41 @@ impl Parcel for Message {
 
         fn write(&self, write: &mut Write) -> Result<(), protocol::Error> {
             match *self {
-                // TODO: finish implementation
                 Message::Acknowledge(ref data) => data.write(write),
                 Message::LocalJoin(ref data) => data.write(write),
+                Message::AuxiliaryStream(ref data) => data.write(write),
+                Message::ActiveSurfaceChange(ref data) => data.write(write),
+                Message::ConsoleStatus(ref data) => data.write(write),
+                Message::TitleTextConfiguration(ref data) => data.write(write),
+                Message::TitleTextInput(ref data) => data.write(write),
+                Message::TitleTextSelection(ref data) => data.write(write),
+                Message::TitleLaunch(ref data) => data.write(write),
+                Message::StartChannelRequest(ref data) => data.write(write),
+                Message::StartChannelResponse(ref data) => data.write(write),
+                Message::StopChannel(ref data) => data.write(write),
+                Message::Disconnect(ref data) => data.write(write),
+                Message::TitleTouch(ref data) => data.write(write),
+                Message::Accelerometer(ref data) => data.write(write),
+                Message::Gyrometer(ref data) => data.write(write),
+                Message::Inclinometer(ref data) => data.write(write),
+                Message::Compass(ref data) => data.write(write),
+                Message::Orientation(ref data) => data.write(write),
+                Message::PairedIdentityStateChanged(ref data) => data.write(write),
+                Message::Unsnap(ref data) => data.write(write),
+                Message::GameDvrRecord(ref data) => data.write(write),
+                Message::PowerOff(ref data) => data.write(write),
+                Message::MediaControllerRemoved(ref data) => data.write(write),
+                Message::MediaCommand(ref data) => data.write(write),
+                Message::MediaCommandResult(ref data) => data.write(write),
+                Message::MediaState(ref data) => data.write(write),
+                Message::Gamepad(ref data) => data.write(write),
+                Message::SystemTextConfiguration(ref data) => data.write(write),
+                Message::SystemTextInput(ref data) => data.write(write),
+                Message::SystemTouch(ref data) => data.write(write),
+                Message::SystemTextAcknowledge(ref data) => data.write(write),
+                Message::SystemTextDone(ref data) => data.write(write),
+                Message::Json(ref data) => data.write(write),
+                
                 _ => Err(protocol::Error::from_kind(protocol::ErrorKind::UnknownPacketId))
 
             }
