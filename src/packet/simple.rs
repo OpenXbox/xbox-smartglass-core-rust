@@ -112,6 +112,12 @@ mod test {
     use ::state::*;
     use ::sgcrypto;
 
+    fn new_connected_state() -> SGState {
+        let crypto = ::sgcrypto::test::from_secret(include_bytes!("test/secret"));
+        let state = State{ connection_state: ConnectionState::Connecting, pairing_state: PairingState::NotPaired, crypto };
+        SGState::Connected(state)
+    }
+
     #[test]
     fn parse_discovery_request_works() {
         let data = include_bytes!("test/discovery_request");
@@ -199,9 +205,7 @@ mod test {
     #[test]
     fn parse_connect_response_works() {
         let data = include_bytes!("test/connect_response");
-        let crypto = ::sgcrypto::test::from_secret(include_bytes!("test/secret"));
-        let state = State{ connection_state: ConnectionState::Connecting, pairing_state: PairingState::NotPaired, crypto };
-        let sgstate = SGState::Connected(state);
+        let sgstate = new_connected_state();
         let packet = packet::Packet::read(data, &sgstate).unwrap();
 
         match packet {
@@ -223,9 +227,7 @@ mod test {
     #[test]
     fn repack_connect_response_works() {
         let data = include_bytes!("test/connect_response");
-        let crypto = sgcrypto::test::from_secret(include_bytes!("test/secret"));
-        let state = State{ connection_state: ConnectionState::Connecting, pairing_state: PairingState::NotPaired, crypto };
-        let sgstate = SGState::Connected(state);
+        let sgstate = new_connected_state();
         let packet = packet::Packet::read(data, &sgstate).unwrap();
 
         assert_eq!(data.to_vec(), packet.raw_bytes(&sgstate).unwrap());
