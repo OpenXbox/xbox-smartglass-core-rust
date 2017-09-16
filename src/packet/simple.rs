@@ -3,7 +3,7 @@ extern crate protocol;
 use std::io::{Read, Write};
 
 use ::packet::{Type, Header};
-use ::util::{SGString, UUID};
+use ::util::{SGString, UUID, PublicKey};
 use self::protocol::{Parcel, DynArray};
 
 #[derive(Debug, Clone)]
@@ -15,13 +15,13 @@ pub struct SimpleHeader {
 }
 
 impl SimpleHeader {
-    fn new(pkt_type: Type, version: u16) -> Result<Self, protocol::Error> {
-        Ok(SimpleHeader {
+    pub fn new(pkt_type: Type, version: u16) -> Self {
+        SimpleHeader {
             pkt_type: pkt_type,
             unprotected_payload_length: 0,
             protected_payload_length: 0,
             version: version
-        })
+        }
     }
 }
 
@@ -82,18 +82,16 @@ define_packet!(PowerOnRequestData {
 
 define_packet!(ConnectRequestUnprotectedData {
     sg_uuid: [u8; 16], // todo: allow UUID parsing to bytes rather than string
-    public_key_type: u16,
-    public_key_1: [u8; 32], // todo: fix this, it complains about Clone not being implemented if you go above 32
-    public_key_2: [u8; 32],
+    public_key: PublicKey,
     iv: [u8;16]
 });
 
 define_packet!(ConnectRequestProtectedData {
     userhash: SGString,
     jwt: SGString,
-    connect_request_num: u32,
-    connect_request_group_start: u32,
-    connect_request_group_end: u32
+    request_num: u32,
+    request_group_start: u32,
+    request_group_end: u32
 });
 
 define_packet!(ConnectResponseUnprotectedData {

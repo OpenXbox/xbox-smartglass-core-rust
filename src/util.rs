@@ -1,5 +1,6 @@
 extern crate protocol;
 
+use std::fmt;
 use std::io::{Read, Write};
 
 use self::protocol::{Parcel, DynArray, Error};
@@ -87,6 +88,37 @@ impl Parcel for UUID {
         let data = DynArray::<u16, u8>::new(self.value.clone().into_bytes());
         data.write(write)?;
         Ok(())
+    }
+}
+
+#[derive(Clone)]
+pub struct PublicKey {
+    key_type: u16,
+    key: [u8; 64]
+}
+
+impl PublicKey {
+    pub fn new(key_type: u16, key: [u8; 64]) -> Self {
+        PublicKey {
+            key_type,
+            key
+        }
+    }
+}
+
+implement_composite_type!(PublicKey { key_type, key });
+
+impl fmt::Debug for PublicKey {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        write!(formatter, "PublicKey {{ key_type: {}", self.key_type);
+        self.key[..].fmt(formatter);
+        write!(formatter, "}}")
+    }
+}
+
+impl PartialEq for PublicKey {
+    fn eq(&self, other: &PublicKey) -> bool {
+        self.key_type == other.key_type && self.key[..] == other.key[..]
     }
 }
 
