@@ -35,7 +35,7 @@ quick_error! {
     pub enum WriteError {
         Encrypt(err: sgcrypto::Error) { }
         IO(err: io::Error) { from() }
-        IV(err: sgcrypto::Error) { from() }
+        IV(err: sgcrypto::Error) { }
         Message(err: String) { from() }
         NotImplimented { }
         Signature(err: sgcrypto::Error) { }
@@ -427,7 +427,7 @@ impl Packet {
 
         // Generate IV
         let mut iv = [0u8;16];
-        crypto.generate_iv(&write.get_ref()[..16], &mut iv[..])?;
+        crypto.generate_iv(&write.get_ref()[..16], &mut iv[..]).map_err(WriteError::IV)?;
 
         // Serialize encrypted message
         Packet::encrypt(write, message, crypto, &iv)?;
