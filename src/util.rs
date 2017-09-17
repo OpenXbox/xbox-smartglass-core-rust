@@ -1,8 +1,11 @@
+extern crate uuid;
 extern crate protocol;
 
 use std::fmt;
 use std::io::{Read, Write};
+use std::marker::PhantomData;
 
+use self::uuid::Uuid;
 use self::protocol::{Parcel, DynArray, Error};
 use self::protocol::String as PrefixedString;
 
@@ -61,32 +64,43 @@ impl Parcel for SGString {
 }
 
 #[derive(Debug, PartialEq, Eq, Clone)]
-pub struct UUID {
-    len: u16,
-    value: String
+pub struct UUID<T: Parcel> {
+    uuid: Uuid,
+    _a: PhantomData<T>,
 }
 
-impl UUID {
-    pub fn from_string(string: String) -> UUID {
+impl<T: Parcel> UUID<T> {
+    pub fn new(uuid: Uuid) -> Self {
         UUID {
-            len: string.len() as u16,
-            value: string
+            uuid,
+            _a: PhantomData
         }
     }
 }
 
-impl Parcel for UUID {
+impl Parcel for UUID<String> {
     fn read(read: &mut Read) -> Result<Self, Error> {
         let data = DynArray::<u16, u8>::read(read)?;
-        Ok(UUID {
-            len: data.elements.len() as u16,
-            value: String::from_utf8(data.elements)?
-        })
+        let uuid = Uuid::parse_str(&String::from_utf8(data.elements)?)?;
+        Ok(Self::new(uuid))
     }
 
     fn write(&self, write: &mut Write) -> Result<(), Error> {
-        let data = DynArray::<u16, u8>::new(self.value.clone().into_bytes());
+        let data = DynArray::<u16, u8>::new(self.uuid.hyphenated().to_string().to_uppercase().into_bytes());
         data.write(write)?;
+        Ok(())
+    }
+}
+
+impl Parcel for UUID<u8> {
+    fn read(read: &mut Read) -> Result<Self, Error> {
+        let data: [u8; 16] = Parcel::read(read)?;
+        let uuid = Uuid::from_bytes(&data)?;
+        Ok(Self::new(uuid))
+    }
+
+    fn write(&self, write: &mut Write) -> Result<(), Error> {
+        self.uuid.as_bytes().write(write)?;
         Ok(())
     }
 }
