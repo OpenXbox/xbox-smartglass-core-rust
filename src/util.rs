@@ -1,13 +1,10 @@
-extern crate uuid;
-extern crate protocol;
-
 use std::fmt;
 use std::io::{Read, Write};
 use std::marker::PhantomData;
 
-use self::uuid::Uuid;
-use self::protocol::{Parcel, DynArray, Error};
-use self::protocol::String as PrefixedString;
+use uuid::Uuid;
+use protocol::{Parcel, DynArray, Error};
+use protocol::String as PrefixedString;
 
 /// A representation of the weird serialization format of strings in SG packets
 /// NOTE: this will not work with serde
@@ -172,5 +169,14 @@ mod test {
         let sgstring = SGString::from_str(String::from("test"));
 
         assert_eq!(serialized, sgstring.raw_bytes().unwrap().as_slice());
+    }
+
+    #[test]
+    fn uuid_works() {
+        let data = Uuid::parse_str("DE305D54-75B4-431B-ADB2-EB6B9E546014").unwrap();
+        // let data = Uuid::new_v4();  // this doesn't work for whatever reason?
+        let sg_uuid = UUID::<u8>::new(data);
+
+        assert_eq!(sg_uuid.uuid, data);
     }
 }

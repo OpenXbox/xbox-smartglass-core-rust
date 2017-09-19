@@ -1,15 +1,12 @@
-extern crate protocol;
-extern crate bit_field;
-extern crate num_traits;
-
 use std::io::{Read, Write};
 
 use ::packet::{Type, Header};
 use ::util::{SGString, UUID};
 
-use self::protocol::*;
-use self::bit_field::BitField;
-use self::num_traits::FromPrimitive;
+use protocol;
+use protocol::{Parcel, DynArray};
+use bit_field::BitField;
+use num_traits::FromPrimitive;
 
 #[repr(u16)]
 #[derive(Primitive, PartialEq, Eq, Copy, Clone, Debug)]
@@ -58,11 +55,11 @@ pub enum MessageType {
 }
 
 impl Parcel for MessageType {
-    fn read(read: &mut Read) -> Result<Self, Error> {
+    fn read(read: &mut Read) -> Result<Self, protocol::Error> {
         Ok(MessageType::from_u16(u16::read(read)?).unwrap())
     }
 
-    fn write(&self, write: &mut Write) -> Result<(), Error> {
+    fn write(&self, write: &mut Write) -> Result<(), protocol::Error> {
         (*self as u16).write(write)?;
 
         Ok(())

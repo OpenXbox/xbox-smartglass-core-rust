@@ -1,6 +1,3 @@
-extern crate protocol;
-extern crate num_traits;
-
 pub mod simple;
 pub mod message;
 pub mod factory;
@@ -14,8 +11,9 @@ use ::sgcrypto::Crypto;
 use ::packet::simple::*;
 use ::packet::message::*;
 
-use self::protocol::*;
-use self::num_traits::FromPrimitive;
+use protocol;
+use protocol::{Parcel};
+use num_traits::FromPrimitive;
 
 quick_error! {
     #[derive(Debug)]
@@ -67,11 +65,11 @@ impl Type {
 }
 
 impl Parcel for Type {
-    fn read(read: &mut Read) -> Result<Self, Error> {
+    fn read(read: &mut Read) -> Result<Self, protocol::Error> {
         Ok(Type::from_u16(u16::read(read)?).unwrap())
     }
 
-    fn write(&self, write: &mut Write) -> Result<(), Error> {
+    fn write(&self, write: &mut Write) -> Result<(), protocol::Error> {
         (*self as u16).write(write)?;
 
         Ok(())
