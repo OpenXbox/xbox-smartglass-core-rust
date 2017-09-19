@@ -1,10 +1,10 @@
-extern crate protocol;
-
 use std::io::{Read, Write};
 
 use ::packet::{Type, Header};
 use ::util::{SGString, UUID, PublicKey};
-use self::protocol::{Parcel, DynArray};
+
+use protocol;
+use protocol::{Parcel, DynArray};
 
 #[derive(Debug, Clone)]
 pub struct SimpleHeader {
@@ -70,7 +70,7 @@ define_packet!(DiscoveryResponseData {
     flags: u32,
     client_type: u16,  // todo: enumify
     name: SGString,
-    uuid: UUID,
+    uuid: UUID<String>,
     padding: [u8; 5],
     certificate: DynArray<u16, u8> // todo: create a type for this
 });
@@ -81,7 +81,7 @@ define_packet!(PowerOnRequestData {
 });
 
 define_packet!(ConnectRequestUnprotectedData {
-    sg_uuid: [u8; 16], // todo: allow UUID parsing to bytes rather than string
+    sg_uuid: UUID<u8>,
     public_key: PublicKey,
     iv: [u8;16]
 });
@@ -107,10 +107,10 @@ define_packet!(ConnectResponseProtectedData {
 #[cfg(test)]
 mod test {
     use super::*;
-    use std::string;
     use ::packet;
     use ::state::*;
     use ::sgcrypto;
+    use uuid::Uuid;
 
     fn new_connected_state() -> SGState {
         let crypto = ::sgcrypto::test::from_secret(include_bytes!("test/secret"));
@@ -157,8 +157,8 @@ mod test {
                 assert_eq!(header.protected_payload_length, 0);
                 assert_eq!(header.version, 2);;
                 // Protocol crate also exports a String type, dunno how to properly handle this yet though, so this'll have to do for now
-                assert_eq!(data.name, SGString::from_str(string::String::from("XboxOne")));
-                assert_eq!(data.uuid, UUID::from_string(string::String::from("DE305D54-75B4-431B-ADB2-EB6B9E546014")));
+                assert_eq!(data.name, SGString::from_str(String::from("XboxOne")));
+                assert_eq!(data.uuid, UUID::new(Uuid::parse_str("DE305D54-75B4-431B-ADB2-EB6B9E546014").unwrap()));
                 assert_eq!(data.certificate.elements.len(), 587); // todo: properly parse cert
             },
             _ => panic!("Wrong type")

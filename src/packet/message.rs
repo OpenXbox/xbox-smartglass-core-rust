@@ -1,15 +1,12 @@
-extern crate protocol;
-extern crate bit_field;
-extern crate num_traits;
-
 use std::io::{Read, Write};
 
 use ::packet::{Type, Header};
 use ::util::{SGString, UUID};
 
-use self::protocol::*;
-use self::bit_field::BitField;
-use self::num_traits::FromPrimitive;
+use protocol;
+use protocol::{Parcel, DynArray};
+use bit_field::BitField;
+use num_traits::FromPrimitive;
 
 #[repr(u16)]
 #[derive(Primitive, PartialEq, Eq, Copy, Clone, Debug)]
@@ -58,11 +55,11 @@ pub enum MessageType {
 }
 
 impl Parcel for MessageType {
-    fn read(read: &mut Read) -> Result<Self, Error> {
+    fn read(read: &mut Read) -> Result<Self, protocol::Error> {
         Ok(MessageType::from_u16(u16::read(read)?).unwrap())
     }
 
-    fn write(&self, write: &mut Write) -> Result<(), Error> {
+    fn write(&self, write: &mut Write) -> Result<(), protocol::Error> {
         (*self as u16).write(write)?;
 
         Ok(())
@@ -155,7 +152,7 @@ impl Parcel for Message {
                 Message::SystemTextAcknowledge(ref data) => data.write(write),
                 Message::SystemTextDone(ref data) => data.write(write),
                 Message::Json(ref data) => data.write(write),
-                
+
                 _ => Err(protocol::Error::from_kind(protocol::ErrorKind::UnknownPacketId))
 
             }
@@ -300,7 +297,7 @@ define_packet!(ActiveSurfaceChangeData {
     surface_type: u16,
     server_tcp_port: u16,
     server_udp_port: u16,
-    session_id: [u8; 16],  // todo: UUID from bytes
+    session_id: UUID<u8>,
     render_width: u16,
     render_height: u16,
     master_session_key: [u8; 16]
@@ -344,8 +341,8 @@ define_packet!(ConsoleStatusData {
 define_composite_type!(ActiveTitle {
     title_id: u32,
     title_disposition: u16,
-    product_id: [u8; 16],  // todo: UUID from bytes
-    sandbox_id: [u8; 16],
+    product_id: UUID<u8>,
+    sandbox_id: UUID<u8>,
     aum: SGString
 });
 
@@ -417,7 +414,7 @@ define_packet!(TitleLaunchData {
 define_packet!(StartChannelRequestData {
     channel_request_id: u32,
     title_id: u32,
-    service: [u8; 16]  // todo: add UUID from bytes
+    service: UUID<u8>
 });
 
 // start_channel_response = 'start_channel_response' / Struct(

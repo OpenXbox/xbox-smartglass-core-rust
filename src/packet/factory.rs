@@ -1,7 +1,9 @@
+use uuid::Uuid;
+
 use ::packet::*;
 use ::packet::simple::*;
 use ::packet::message::*;
-use ::util::{SGString, PublicKey};
+use ::util::{SGString, PublicKey, UUID};
 
 use std::string::String;
 
@@ -25,10 +27,10 @@ pub fn discovery_request(client_type: u32) -> Packet {
     Packet::DiscoveryRequest(header, data)
 }
 
-pub fn connect_request(sg_uuid: [u8; 16], public_key: PublicKey, iv: [u8; 16], userhash: String, jwt: String, request_num: u32, request_group_start: u32, request_group_end: u32) -> Packet {
+pub fn connect_request(sg_uuid: Uuid, public_key: PublicKey, iv: [u8; 16], userhash: String, jwt: String, request_num: u32, request_group_start: u32, request_group_end: u32) -> Packet {
     let header = SimpleHeader::new(Type::ConnectRequest, 2);
     let unprotected_data = ConnectRequestUnprotectedData {
-        sg_uuid,
+        sg_uuid: UUID::new(sg_uuid),
         public_key,
         iv
     };
