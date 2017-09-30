@@ -1,3 +1,5 @@
+extern crate openssl;
+
 use std::fmt;
 use std::io::{Read, Write};
 use std::marker::PhantomData;
@@ -130,6 +132,78 @@ impl fmt::Debug for PublicKey {
 impl PartialEq for PublicKey {
     fn eq(&self, other: &PublicKey) -> bool {
         self.key_type == other.key_type && self.key[..] == other.key[..]
+    }
+}
+
+#[derive(Clone)]
+pub struct Certificate {
+    subject: String,
+    public_key_type: u8,
+    public_key: [u8; 64],
+    data: DynArray<u16, u8>
+}
+
+impl Certificate {
+    pub fn subject(&self) -> &String {
+        &self.subject
+    }
+
+    pub fn public_key_type(&self) -> u8 {
+        self.public_key_type
+    }
+
+    pub fn public_key(&self) -> &[u8; 64] {
+        &self.public_key
+    }
+}
+
+impl Parcel for Certificate {
+    fn read(read: &mut Read) -> Result<Self, Error> {
+        let data = DynArray::<u16, u8>::read(read)?;
+
+        let group = openssl::ec::EcGroup::from_curve_name(openssl::nid::X9_62_PRIME256V1).unwrap();
+        let form = openssl::ec::POINT_CONVERSION_UNCOMPRESSED;
+        let mut ctx = openssl::bn::BigNumContext::new().unwrap();
+
+        let cert = openssl::x509::X509::from_der(data.elements.as_slice()).unwrap();
+        let subject = String::from_utf8(cert.subject_name().entries_by_nid(openssl::nid::COMMONNAME).next().unwrap().data().as_slice().to_vec()).unwrap();
+        let key = cert.public_key().unwrap().ec_key().unwrap().public_key().unwrap().to_bytes(&group, form, &mut ctx).unwrap().to_vec();
+
+        let public_key_type = key[0];
+        let mut public_key = [0u8; 64];
+
+        for (i, e) in key[1..].iter().enumerate() {
+            public_key[i] = *e;
+        }
+
+        Ok(Certificate {
+            subject,
+            public_key_type,
+            public_key,
+            data
+        })
+    }
+
+    fn write(&self, write: &mut Write) -> Result<(), Error> {
+        self.data.write(write)?;
+        Ok(())
+    }
+}
+
+impl fmt::Debug for Certificate {
+    fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
+        write!(formatter, "Certificate {{ subject: {} public_key_type: {} public_key: ", self.subject, self.public_key_type);
+        self.public_key[..].fmt(formatter);
+        write!(formatter, "}}")
+    }
+}
+
+impl PartialEq for Certificate {
+    fn eq(&self, other: &Certificate) -> bool {
+        self.subject == other.subject &&
+        self.public_key_type == other.public_key_type &&
+        self.public_key[..] == other.public_key[..] &&
+        self.data == other.data
     }
 }
 

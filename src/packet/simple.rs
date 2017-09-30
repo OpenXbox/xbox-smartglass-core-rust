@@ -1,7 +1,7 @@
 use std::io::{Read, Write};
 
 use ::packet::{Type, Header};
-use ::util::{SGString, UUID, PublicKey};
+use ::util::{SGString, UUID, PublicKey, Certificate};
 
 use protocol;
 use protocol::{Parcel, DynArray};
@@ -72,7 +72,7 @@ define_packet!(DiscoveryResponseData {
     name: SGString,
     uuid: UUID<String>,
     padding: [u8; 5],
-    certificate: DynArray<u16, u8> // todo: create a type for this
+    certificate: Certificate
 });
 
 // We don't have test data for this
@@ -159,7 +159,9 @@ mod test {
                 // Protocol crate also exports a String type, dunno how to properly handle this yet though, so this'll have to do for now
                 assert_eq!(data.name, SGString::from_str(String::from("XboxOne")));
                 assert_eq!(data.uuid, UUID::new(Uuid::parse_str("DE305D54-75B4-431B-ADB2-EB6B9E546014").unwrap()));
-                assert_eq!(data.certificate.elements.len(), 587); // todo: properly parse cert
+                assert_eq!(data.certificate.subject(), "FFFFFFFFFFF");
+                assert_eq!(data.certificate.public_key_type(), 4);
+                // assert_eq!(data.certificate.elements.len(), 587); // todo: properly parse cert
             },
             _ => panic!("Wrong type")
         }
