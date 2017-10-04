@@ -92,7 +92,7 @@ trait Header {
 }
 
 impl Packet {
-    fn read(input: &[u8], state: &SGState) -> Result<Self, ReadError> {
+    pub fn read(input: &[u8], state: &SGState) -> Result<Self, ReadError> {
         let mut reader = Cursor::new(input);
         let pkt_type = Type::read(&mut reader)?;
         reader.set_position(0);
@@ -437,7 +437,7 @@ impl Packet {
         Ok(())
     }
 
-    fn raw_bytes(&self, state: &SGState) -> Result<Vec<u8>, WriteError> {
+    pub fn raw_bytes(&self, state: &SGState) -> Result<Vec<u8>, WriteError> {
         let mut buffer = Cursor::new(Vec::new());
         self.write(&mut buffer, state)?;
 

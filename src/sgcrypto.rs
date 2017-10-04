@@ -188,8 +188,27 @@ impl Crypto {
     }
 }
 
+pub mod tests {
+    use super::*;
+
+    pub fn from_secret(secret: &[u8]) -> Crypto {
+        if secret.len() != 64 {
+            panic!("Secret length should be exactly 64-bytes")
+        }
+
+        let mut aes_key = [0u8; 16];
+        let mut iv_key = [0u8; 16];
+        let mut hmac_key = [0u8; 32];
+        &aes_key.clone_from_slice(&secret[0..16]);
+        &iv_key.clone_from_slice(&secret[16..32]);
+        &hmac_key.clone_from_slice(&secret[32..64]);
+
+        Crypto{pub_key: [0u8; 40], aes_key, iv_key, hmac_key}
+    }
+}
+
 #[cfg(test)]
-pub mod test {
+mod test {
     use super::*;
 
     fn new_crypto() -> Crypto {
@@ -260,7 +279,7 @@ pub mod test {
         // Plaintext = 0xDEADBEEF + pkcs padding
         let plaintext = [0xde, 0xad, 0xbe, 0xef, 0x0c, 0x0c, 0x0c, 0x0c, 0x0c, 0x0c, 0x0c, 0x0c, 0x0c, 0x0c, 0x0c, 0x0c];
         // Secret = from python project
-        let crypto = from_secret(include_bytes!("packet/test/secret"));
+        let crypto = from_secret(include_bytes!("test/secret"));
         let mut ciphertext = vec![0u8, 16];
         let result = crypto.decrypt(&iv[..], &plaintext[..], &mut ciphertext[..]);
         assert!(!result.is_err());
@@ -285,8 +304,8 @@ pub mod test {
 
     #[test]
     fn generate_iv_works() {
-        let crypto = from_secret(include_bytes!("packet/test/secret"));
-        let plaintext = include_bytes!("packet/test/message/acknowledge");
+        let crypto = from_secret(include_bytes!("test/secret"));
+        let plaintext = include_bytes!("test/acknowledge");
         let mut iv = [0u8;16];
 
         let enc_result = crypto.generate_iv(&plaintext[..16], &mut iv);
