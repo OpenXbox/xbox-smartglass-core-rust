@@ -66,7 +66,7 @@ impl Parcel for MessageType {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq)]
 pub enum Message {
     Null,
     Acknowledge(AcknowledgeData),

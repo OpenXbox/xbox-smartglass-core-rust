@@ -1,12 +1,12 @@
-extern crate uuid;
 extern crate xbox_sg;
+extern crate protocol;
 
 use xbox_sg::packet;
-use xbox_sg::packet::message::{MessageType, Message};
+use xbox_sg::packet::message::{Message, MessageHeader, MessageHeaderFlags, MessageType};
 use xbox_sg::state::*;
 use xbox_sg::sgcrypto;
 use xbox_sg::util::*;
-use uuid::Uuid;
+use protocol::DynArray;
 
 fn new_connected_state() -> SGState {
     let crypto = sgcrypto::tests::from_secret(include_bytes!("data/secret"));
@@ -21,37 +21,47 @@ fn test_repack(data: &[u8]) {
     assert_eq!(data.to_vec(), packet.raw_bytes(&sgstate).unwrap());
 }
 
-#[test]
-fn parse_ack_works() {
-    let data = include_bytes!("data/message/acknowledge");
+fn test_message(data: &[u8], message: Message, header: MessageHeader) {
     let sgstate = new_connected_state();
     let packet = packet::Packet::read(data, &sgstate).unwrap();
 
     match packet {
-        packet::Packet::Message(header, message) => {
-            assert_eq!(header.pkt_type, packet::Type::Message);
-            assert_eq!(header.protected_payload_length, 16);
-            assert_eq!(header.sequence_number, 1);
-            assert_eq!(header.target_participant_id, 31);
-            assert_eq!(header.source_participant_id, 0);
-            assert_eq!(header.flags.msg_type, MessageType::Acknowledge);
-            assert_eq!(header.flags.need_ack, false);
-            assert_eq!(header.flags.is_fragment, false);
-            assert_eq!(header.flags.version, 2);
-            assert_eq!(header.channel_id, 0x1000000000000000);
-
-            match message {
-                Message::Acknowledge(data) => {
-                    assert_eq!(data.low_watermark, 0);
-                    assert_eq!(data.processed_list.elements, [1]);
-                    assert_eq!(data.rejected_list.elements, []);
-                },
-                _ => panic!("Wrong type")
-            }
-
+        packet::Packet::Message(parsed_header, parsed_message) => {
+            assert_eq!(parsed_header, header);
+            assert_eq!(parsed_message, message);
         },
         _ => panic!("Wrong type")
     }
+}
+
+#[test]
+fn parse_ack_works() {
+    let data = include_bytes!("data/message/acknowledge");
+    
+    let header_flags = MessageHeaderFlags {
+        msg_type: MessageType::Acknowledge,
+        need_ack: false,
+        is_fragment: false,
+        version: 2
+    };
+
+    let header = MessageHeader {
+        pkt_type: packet::Type::Message,
+        protected_payload_length: 16,
+        sequence_number: 1,
+        target_participant_id: 31,
+        source_participant_id: 0,
+        flags: header_flags,
+        channel_id: 0x1000000000000000
+    };
+
+    let message = packet::message::AcknowledgeData {
+        low_watermark: 0,
+        processed_list: DynArray::new(vec![1]),
+        rejected_list: DynArray::new(vec![])
+    };
+
+    test_message(data, Message::Acknowledge(message), header);
 }
 
 #[test]
@@ -63,31 +73,38 @@ fn repack_ack_works() {
 #[test]
 fn parse_local_join_works() {
     let data = include_bytes!("data/message/local_join");
-    let sgstate = new_connected_state();
-    let packet = packet::Packet::read(data, &sgstate).unwrap();
+    
+    let header_flags = MessageHeaderFlags {
+        msg_type: MessageType::LocalJoin,
+        need_ack: true,
+        is_fragment: false,
+        version: 0
+    };
 
-    match packet {
-        packet::Packet::Message(header, message) => {
-            assert_eq!(header.pkt_type, packet::Type::Message);
-            assert_eq!(header.flags.msg_type, MessageType::LocalJoin);
-            match message {
-                Message::LocalJoin(data) => {
-                    assert_eq!(data.device_type, 8);
-                    assert_eq!(data.native_width, 600);
-                    assert_eq!(data.native_height, 1024);
-                    assert_eq!(data.dpi_x, 160);
-                    assert_eq!(data.dpi_y, 160);
-                    assert_eq!(data.device_capabilities, 0xFFFFFFFFFFFFFFFF);
-                    assert_eq!(data.client_version, 133713371);
-                    assert_eq!(data.os_major_version, 42);
-                    assert_eq!(data.os_minor_version, 0);
-                    assert_eq!(data.display_name, SGString::from_str(String::from("package.name.here")));
-                },
-                _ => panic!("Wrong type")
-            }
-        }
-        _ => panic!("Wrong type")
-    }
+    let header = MessageHeader {
+        pkt_type: packet::Type::Message,
+        protected_payload_length: 50,
+        sequence_number: 1,
+        target_participant_id: 0,
+        source_participant_id: 31,
+        flags: header_flags,
+        channel_id: 0
+    };
+
+    let message = packet::message::LocalJoinData {
+        device_type: 8,
+        native_width: 600,
+        native_height: 1024,
+        dpi_x: 160,
+        dpi_y: 160,
+        device_capabilities: 0xFFFFFFFFFFFFFFFF,
+        client_version: 133713371,
+        os_major_version: 42,
+        os_minor_version: 0,
+        display_name: SGString::from_str(String::from("package.name.here")),
+    };
+
+    test_message(data, Message::LocalJoin(message), header);
 }
 
 #[test]
