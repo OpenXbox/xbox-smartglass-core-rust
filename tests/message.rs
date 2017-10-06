@@ -262,3 +262,9 @@ fn parse_disconnect_works() {
 
     test_message(data, Message::Disconnect(message), header);
 }
+
+#[test]
+fn repack_disconnect_works() {
+    let data = include_bytes!("data/message/disconnect");
+    test_repack(data);
+}
