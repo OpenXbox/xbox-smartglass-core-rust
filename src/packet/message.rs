@@ -637,7 +637,7 @@ define_packet!(MediaStateData {
     asset_id: SGString,
     media_type: u16,
     sound_level: u16,
-    enabled_commands: u16,
+    enabled_commands: u32,
     playback_status: u16,
     rate: f32,
     position: u64,

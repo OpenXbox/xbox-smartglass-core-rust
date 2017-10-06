@@ -302,3 +302,55 @@ fn repack_json_works() {
     let data = include_bytes!("data/message/json");
     test_repack(data);
 }
+
+#[test]
+fn parse_media_state_works() {
+    let data = include_bytes!("data/message/media_state");
+
+    let header_flags = MessageHeaderFlags {
+        msg_type: MessageType::MediaState,
+        need_ack: true,
+        is_fragment: false,
+        version: 2
+    };
+
+    let header = MessageHeader {
+        pkt_type: packet::Type::Message,
+        protected_payload_length: 100,
+        sequence_number: 158,
+        target_participant_id: 32,
+        source_participant_id: 0,
+        flags: header_flags,
+        channel_id: 153
+    };
+
+    let message = packet::message::MediaStateData {
+        title_id: 274278798,
+        aum_id: SGString::from_str(String::from("AIVDE_s9eep9cpjhg6g!App")),
+        asset_id: SGString::from_str(String::new()),
+        media_type: 0,
+        sound_level: 2,
+        enabled_commands: 33758,
+        playback_status: 2,
+        rate: 0.0,
+        position: 0,
+        media_start: 0,
+        media_end: 0,
+        min_seek: 0,
+        max_seek: 0,
+        metadata: DynArray::new(vec![
+            packet::message::MediaStateMetadata {
+                name: SGString::from_str(String::from("title")),
+                value: SGString::from_str(String::new())
+            }
+        ])
+    };
+
+    test_message(data, Message::MediaState(message), header);
+}
+
+#[test]
+fn repack_media_state_works() {
+    let data = include_bytes!("data/message/media_state");
+    test_repack(data);
+}
