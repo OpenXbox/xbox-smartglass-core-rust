@@ -1,6 +1,5 @@
 extern crate xbox_sg;
 extern crate protocol;
-extern crate uuid;
 
 use xbox_sg::packet;
 use xbox_sg::packet::message::{Message, MessageHeader, MessageHeaderFlags, MessageType};
@@ -153,7 +152,7 @@ fn repack_start_channel_request_works() {
 }
 
 #[test]
-fn test_start_channel_response_works() {
+fn parse_start_channel_response_works() {
     let data = include_bytes!("data/message/start_channel_response");
 
     let header_flags = MessageHeaderFlags {
@@ -185,5 +184,52 @@ fn test_start_channel_response_works() {
 #[test]
 fn repack_start_channel_response_works() {
     let data = include_bytes!("data/message/start_channel_response");
+    test_repack(data);
+}
+
+#[test]
+fn parse_console_status_works() {
+    let data = include_bytes!("data/message/console_status");
+
+    let header_flags = MessageHeaderFlags {
+        msg_type: MessageType::ConsoleStatus,
+        need_ack: true,
+        is_fragment: false,
+        version: 2
+    };
+
+    let header = MessageHeader {
+        pkt_type: packet::Type::Message,
+        protected_payload_length: 112,
+        sequence_number: 5,
+        target_participant_id: 31,
+        source_participant_id: 0,
+        flags: header_flags,
+        channel_id: 0
+    };
+
+    let message = packet::message::ConsoleStatusData {
+        live_tv_provider: 0,
+        major_version: 10,
+        minor_version: 0,
+        build_number: 14393,
+        locale: SGString::from_str(String::from("en-US")),
+        active_titles: DynArray::new(vec![
+            packet::message::ActiveTitle {
+                title_id: 714681658,
+                title_disposition: 32771,
+                product_id: constants::uuid::NONE.clone(),
+                sandbox_id: constants::uuid::NONE.clone(),
+                aum: SGString::from_str(String::from("Xbox.Home_8wekyb3d8bbwe!Xbox.Home.Application"))
+            }
+        ])
+    };
+
+    test_message(data, Message::ConsoleStatus(message), header);
+}
+
+#[test]
+fn repack_console_status_works() {
+    let data = include_bytes!("data/message/console_status");
     test_repack(data);
 }
