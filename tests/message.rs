@@ -268,3 +268,37 @@ fn repack_disconnect_works() {
     let data = include_bytes!("data/message/disconnect");
     test_repack(data);
 }
+
+#[test]
+fn parse_json_works() {
+    let data = include_bytes!("data/message/json");
+
+    let header_flags = MessageHeaderFlags {
+        msg_type: MessageType::Json,
+        need_ack: true,
+        is_fragment: false,
+        version: 2
+    };
+
+    let header = MessageHeader {
+        pkt_type: packet::Type::Message,
+        protected_payload_length: 54,
+        sequence_number: 11,
+        target_participant_id: 0,
+        source_participant_id: 31,
+        flags: header_flags,
+        channel_id: 151
+    };
+
+    let message = packet::message::JsonData {
+        text: SGString::from_str(String::from(r##"{"request":"GetConfiguration","msgid":"2ed6c0fd.2"}"##))
+    };
+
+    test_message(data, Message::Json(message), header);
+}
+
+#[test]
+fn repack_json_works() {
+    let data = include_bytes!("data/message/json");
+    test_repack(data);
+}
