@@ -75,6 +75,13 @@ impl<T: Parcel> UUID<T> {
             _a: PhantomData
         }
     }
+
+    pub fn into_format<U: Parcel>(self) -> UUID<U> {
+        UUID {
+            uuid: self.uuid,
+            _a: PhantomData
+        }
+    }
 }
 
 impl Parcel for UUID<String> {

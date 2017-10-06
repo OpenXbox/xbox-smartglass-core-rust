@@ -1,11 +1,13 @@
 extern crate xbox_sg;
 extern crate protocol;
+extern crate uuid;
 
 use xbox_sg::packet;
 use xbox_sg::packet::message::{Message, MessageHeader, MessageHeaderFlags, MessageType};
 use xbox_sg::state::*;
 use xbox_sg::sgcrypto;
 use xbox_sg::util::*;
+use xbox_sg::constants;
 use protocol::DynArray;
 
 fn new_connected_state() -> SGState {
@@ -110,5 +112,78 @@ fn parse_local_join_works() {
 #[test]
 fn repack_local_join_works() {
     let data = include_bytes!("data/message/local_join");
+    test_repack(data);
+}
+
+#[test]
+fn parse_start_channel_request_works() {
+    let data = include_bytes!("data/message/start_channel_request");
+
+    let header_flags = MessageHeaderFlags {
+        msg_type: MessageType::StartChannelRequest,
+        need_ack: true,
+        is_fragment: false,
+        version: 2
+    };
+
+    let header = MessageHeader {
+        pkt_type: packet::Type::Message,
+        protected_payload_length: 28,
+        sequence_number: 2,
+        target_participant_id: 0,
+        source_participant_id: 31,
+        flags: header_flags,
+        channel_id: 0
+    };
+
+    let message = packet::message::StartChannelRequestData {
+        channel_request_id: 1,
+        title_id: 0,
+        service: constants::uuid::SYSTEM_INPUT.clone(),
+        activity_id: 0
+    };
+
+    test_message(data, Message::StartChannelRequest(message), header);
+}
+
+#[test]
+fn repack_start_channel_request_works() {
+    let data = include_bytes!("data/message/start_channel_request");
+    test_repack(data);
+}
+
+#[test]
+fn test_start_channel_response_works() {
+    let data = include_bytes!("data/message/start_channel_response");
+
+    let header_flags = MessageHeaderFlags {
+        msg_type: MessageType::StartChannelResponse,
+        need_ack: true,
+        is_fragment: false,
+        version: 2
+    };
+
+    let header = MessageHeader {
+        pkt_type: packet::Type::Message,
+        protected_payload_length: 16,
+        sequence_number: 6,
+        target_participant_id: 31,
+        source_participant_id: 0,
+        flags: header_flags,
+        channel_id: 0
+    };
+
+    let message = packet::message::StartChannelResponseData {
+        channel_request_id: 1,
+        target_channel_id: 148,
+        result: 0
+    };
+
+    test_message(data, Message::StartChannelResponse(message), header);
+}
+
+#[test]
+fn repack_start_channel_response_works() {
+    let data = include_bytes!("data/message/start_channel_response");
     test_repack(data);
 }

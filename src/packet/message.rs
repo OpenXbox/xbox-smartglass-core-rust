@@ -414,7 +414,8 @@ define_packet!(TitleLaunchData {
 define_packet!(StartChannelRequestData {
     channel_request_id: u32,
     title_id: u32,
-    service: UUID<u8>
+    service: UUID<u8>,
+    activity_id: u32
 });
 
 // start_channel_response = 'start_channel_response' / Struct(
