@@ -233,3 +233,32 @@ fn repack_console_status_works() {
     let data = include_bytes!("data/message/console_status");
     test_repack(data);
 }
+
+#[test]
+fn parse_disconnect_works() {
+    let data = include_bytes!("data/message/disconnect");
+
+    let header_flags = MessageHeaderFlags {
+        msg_type: MessageType::Disconnect,
+        need_ack: false,
+        is_fragment: false,
+        version: 2
+    };
+
+    let header = MessageHeader {
+        pkt_type: packet::Type::Message,
+        protected_payload_length: 8,
+        sequence_number: 57,
+        target_participant_id: 0,
+        source_participant_id: 31,
+        flags: header_flags,
+        channel_id: 0
+    };
+
+    let message = packet::message::DisconnectData {
+        reason: 0,
+        error_code: 0
+    };
+
+    test_message(data, Message::Disconnect(message), header);
+}
