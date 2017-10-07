@@ -356,7 +356,7 @@ fn repack_media_state_works() {
 }
 
 #[test]
-fn parse_text_ack_works() {
+fn parse_system_text_ack_works() {
     let data = include_bytes!("data/message/system_text_acknowledge");
 
     let header_flags = MessageHeaderFlags {
@@ -385,7 +385,127 @@ fn parse_text_ack_works() {
 }
 
 #[test]
-fn repack_text_ack_works() {
+fn repack_system_text_ack_works() {
     let data = include_bytes!("data/message/system_text_acknowledge");
     test_repack(data);
 }
+
+#[test]
+fn parse_system_text_configuration_works() {
+    let data = include_bytes!("data/message/system_text_configuration");
+
+    let header_flags = MessageHeaderFlags {
+        msg_type: MessageType::SystemTextConfiguration,
+        need_ack: true,
+        is_fragment: false,
+        version: 2
+    };
+
+    let header = MessageHeader {
+        pkt_type: packet::Type::Message,
+        protected_payload_length: 35,
+        sequence_number: 91,
+        target_participant_id: 32,
+        source_participant_id: 0,
+        flags: header_flags,
+        channel_id: 154
+    };
+
+    let message = packet::message::TextConfigurationData {
+        session_id: 9,
+        buffer_version: 0,
+        options: 5,
+        input_scope: 57,
+        max_text_len: 0,
+        locale: SGString::from_str(String::from("de-DE")),
+        prompt: SGString::from_str(String::new())
+    };
+
+    test_message(data, Message::SystemTextConfiguration(message), header);
+}
+
+#[test]
+fn repack_system_text_configuration_works() {
+    let data = include_bytes!("data/message/system_text_configuration");
+    test_repack(data);
+}
+
+#[test]
+fn parse_system_text_done_works() {
+    let data = include_bytes!("data/message/system_text_done");
+
+    let header_flags = MessageHeaderFlags {
+        msg_type: MessageType::SystemTextDone,
+        need_ack: true,
+        is_fragment: false,
+        version: 2
+    };
+
+    let header = MessageHeader {
+        pkt_type: packet::Type::Message,
+        protected_payload_length: 16,
+        sequence_number: 90,
+        target_participant_id: 32,
+        source_participant_id: 0,
+        flags: header_flags,
+        channel_id: 154
+    };
+
+    let message = packet::message::SystemTextDoneData {
+        session_id: 0,
+        version: 0,
+        flags: 0,
+        unk: 0
+    };
+
+    test_message(data, Message::SystemTextDone(message), header);
+}
+
+#[test]
+fn repack_system_text_done_works() {
+    let data = include_bytes!("data/message/system_text_done");
+    test_repack(data);
+}
+
+// #[test]
+// fn parse_system_text_input_works() {
+//     let data = include_bytes!("data/message/system_text_input");
+
+//     let header_flags = MessageHeaderFlags {
+//         msg_type: MessageType::SystemTextInput,
+//         need_ack: true,
+//         is_fragment: false,
+//         version: 2
+//     };
+
+//     let header = MessageHeader {
+//         pkt_type: packet::Type::Message,
+//         protected_payload_length: 16,
+//         sequence_number: 90,
+//         target_participant_id: 32,
+//         source_participant_id: 0,
+//         flags: header_flags,
+//         channel_id: 154
+//     };
+
+//     let message = packet::message::SystemTextInputData {
+//         session_id: 8,
+//         base_version: 1,
+//         submitted_version: 2,
+//         total_text_byte_len: 1,
+//         selection_start: 4294967295,
+//         selection_len: 1,
+//         flags: 0,
+//         text_chunk_byte_start: 0,
+//         delta: 0,
+//         text_chunk: SGString::from_str(String::from("h"))
+//     };
+
+//     test_message(data, Message::SystemTextInput(message), header);
+// }
+
+// #[test]
+// fn repack_system_text_input_works() {
+//     let data = include_bytes!("data/message/system_text_input");
+//     test_repack(data);
+// }

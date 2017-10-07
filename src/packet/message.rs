@@ -694,7 +694,7 @@ define_packet!(SystemTextInputData {
     submitted_version: u32,
     total_text_byte_len: u32,
     selection_start: u32,
-    selection_lenght: u32,
+    selection_len: u32,
     flags: u16,
     text_chunk_byte_start: u32,
     text_chunk: SGString
