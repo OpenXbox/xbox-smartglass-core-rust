@@ -467,48 +467,47 @@ fn repack_system_text_done_works() {
     test_repack(data);
 }
 
-// #[test]
-// fn parse_system_text_input_works() {
-//     let data = include_bytes!("data/message/system_text_input");
+#[test]
+fn parse_system_text_input_works() {
+    let data = include_bytes!("data/message/system_text_input");
 
-//     let header_flags = MessageHeaderFlags {
-//         msg_type: MessageType::SystemTextInput,
-//         need_ack: true,
-//         is_fragment: false,
-//         version: 2
-//     };
+    let header_flags = MessageHeaderFlags {
+        msg_type: MessageType::SystemTextInput,
+        need_ack: true,
+        is_fragment: false,
+        version: 2
+    };
 
-//     let header = MessageHeader {
-//         pkt_type: packet::Type::Message,
-//         protected_payload_length: 16,
-//         sequence_number: 90,
-//         target_participant_id: 32,
-//         source_participant_id: 0,
-//         flags: header_flags,
-//         channel_id: 154
-//     };
+    let header = MessageHeader {
+        pkt_type: packet::Type::Message,
+        protected_payload_length: 34,
+        sequence_number:151,
+        target_participant_id: 0,
+        source_participant_id: 32,
+        flags: header_flags,
+        channel_id: 154
+    };
 
-//     let message = packet::message::SystemTextInputData {
-//         session_id: 8,
-//         base_version: 1,
-//         submitted_version: 2,
-//         total_text_byte_len: 1,
-//         selection_start: 4294967295,
-//         selection_len: 1,
-//         flags: 0,
-//         text_chunk_byte_start: 0,
-//         delta: 0,
-//         text_chunk: SGString::from_str(String::from("h"))
-//     };
+    let message = packet::message::SystemTextInputData {
+        session_id: 8,
+        base_version: 1,
+        submitted_version: 2,
+        total_text_byte_len: 1,
+        selection_start: 4294967295,
+        selection_end: 4294967295,
+        flags: 0,
+        text_chunk_byte_start: 0,
+        text_chunk: SGString::from_str(String::from("h"))
+    };
 
-//     test_message(data, Message::SystemTextInput(message), header);
-// }
+    test_message(data, Message::SystemTextInput(message), header);
+}
 
-// #[test]
-// fn repack_system_text_input_works() {
-//     let data = include_bytes!("data/message/system_text_input");
-//     test_repack(data);
-// }
+#[test]
+fn repack_system_text_input_works() {
+    let data = include_bytes!("data/message/system_text_input");
+    test_repack(data);
+}
 
 #[test]
 fn parse_system_touch_works() {
