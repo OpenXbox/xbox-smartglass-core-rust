@@ -354,3 +354,38 @@ fn repack_media_state_works() {
     let data = include_bytes!("data/message/media_state");
     test_repack(data);
 }
+
+#[test]
+fn parse_text_ack_works() {
+    let data = include_bytes!("data/message/system_text_acknowledge");
+
+    let header_flags = MessageHeaderFlags {
+        msg_type: MessageType::SystemTextAcknowledge,
+        need_ack: true,
+        is_fragment: false,
+        version: 2
+    };
+
+    let header = MessageHeader {
+        pkt_type: packet::Type::Message,
+        protected_payload_length: 8,
+        sequence_number: 46,
+        target_participant_id: 32,
+        source_participant_id: 0,
+        flags: header_flags,
+        channel_id: 154
+    };
+
+    let message = packet::message::SystemTextAcknowledgeData {
+        session_id: 8,
+        version_ack: 2
+    };
+
+    test_message(data, Message::SystemTextAcknowledge(message), header);
+}
+
+#[test]
+fn repack_text_ack_works() {
+    let data = include_bytes!("data/message/system_text_acknowledge");
+    test_repack(data);
+}
