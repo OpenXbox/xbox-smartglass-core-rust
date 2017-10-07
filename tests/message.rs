@@ -509,3 +509,45 @@ fn repack_system_text_done_works() {
 //     let data = include_bytes!("data/message/system_text_input");
 //     test_repack(data);
 // }
+
+#[test]
+fn parse_system_touch_works() {
+    let data = include_bytes!("data/message/system_touch");
+
+    let header_flags = MessageHeaderFlags {
+        msg_type: MessageType::SystemTouch,
+        need_ack: true,
+        is_fragment: false,
+        version: 2
+    };
+
+    let header = MessageHeader {
+        pkt_type: packet::Type::Message,
+        protected_payload_length: 20,
+        sequence_number: 26,
+        target_participant_id: 0,
+        source_participant_id: 32,
+        flags: header_flags,
+        channel_id: 152
+    };
+
+    let message = packet::message::TouchData {
+        timestamp: 182459592,
+        active_titles: DynArray::new(vec![
+            packet::message::Touchpoint {
+                id: 1,
+                action: 1,
+                x: 244,
+                y: 255
+            }
+        ])
+    };
+
+    test_message(data, Message::SystemTouch(message), header);
+}
+
+#[test]
+fn repack_system_touch_works() {
+    let data = include_bytes!("data/message/system_touch");
+    test_repack(data);
+}
