@@ -61,9 +61,10 @@ impl Header for SimpleHeader {
 
 // Data definitions. The define_packet macro implements Parcel for us on structs.
 define_packet!(DiscoveryRequestData {
-    unk: u16,
-    client_type: u32,  // todo: enumify
-    flags: u32
+    flags: u32,
+    client_type: u16,  // todo: enumify
+    minimum_version: u16,
+    maximum_version: u16
 });
 
 define_packet!(DiscoveryResponseData {

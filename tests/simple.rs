@@ -25,8 +25,10 @@ fn parse_discovery_request_works() {
             assert_eq!(header.protected_payload_length, 0);
             assert_eq!(header.version, 0);
 
+            assert_eq!(data.flags, 0);
             assert_eq!(data.client_type, 8); // Android - todo: enumify
-            assert_eq!(data.flags, 2);
+            assert_eq!(data.minimum_version, 0);
+            assert_eq!(data.maximum_version, 2);
         },
         _ => panic!("Wrong type")
     }
