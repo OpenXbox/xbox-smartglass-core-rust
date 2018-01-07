@@ -168,7 +168,8 @@ impl Packet {
         let header = MessageHeader::from_raw_bytes(&header_buf)?;
 
         let mut iv = [0u8; 16];
-        internal_state.crypto.generate_iv(&header_buf[..16], &mut iv);
+        // Should this be it's own error type?
+        internal_state.crypto.generate_iv(&header_buf[..16], &mut iv).map_err(ReadError::Decrypt)?;
         let decrypted_buf = Packet::decrypt(reader, &internal_state.crypto, header.protected_payload_length as usize, &iv)?;
 
         // // todo: implement
@@ -362,7 +363,7 @@ impl Packet {
             Packet::DiscoveryResponse(ref header, ref data) => {
                 Packet::write_unprotected(write, header, data)?;
             },
-            Packet::ConnectRequest(ref header, ref unprotected_data, ref protected_data) => {
+            Packet::ConnectRequest(ref header, ref unprotected_data, _) => {
                 header.write(write)?;
                 unprotected_data.write(write)?;
             },

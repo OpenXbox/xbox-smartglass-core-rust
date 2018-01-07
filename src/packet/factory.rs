@@ -2,7 +2,6 @@ use uuid::Uuid;
 
 use ::packet::*;
 use ::packet::simple::*;
-use ::packet::message::*;
 use ::util::{SGString, PublicKey, UUID};
 
 use std::string::String;

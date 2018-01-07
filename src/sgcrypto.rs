@@ -45,6 +45,7 @@ impl Salt {
 }
 
 /// The particular crypto ipmlementation used by SmartGlass
+#[allow(dead_code)]
 pub struct Crypto {
     pub_key: [u8; 40],
     aes_key: [u8;16],
@@ -76,13 +77,13 @@ impl Crypto {
         let mut public_key = [0u8; agreement::PUBLIC_KEY_MAX_LEN];
         let public_key = &mut public_key[..private_key.public_key_len()];
         // TODO: error handling
-        private_key.compute_public_key(public_key);
+        private_key.compute_public_key(public_key).unwrap();
 
         let kdf =  |secret: &[u8]| {
             // TODO: error handling
-            let salted_secret = secret.to_vec();
+            let mut salted_secret = secret.to_vec();
             for salt in salts.iter() {
-                let salted_secret = salt.apply(&salted_secret);
+                salted_secret = salt.apply(&salted_secret);
             }
             let derived_key = digest::digest(&digest::SHA512, &salted_secret[..]);
             Ok((*derived_key.as_ref()).to_vec())

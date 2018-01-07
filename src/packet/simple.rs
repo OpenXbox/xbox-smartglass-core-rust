@@ -4,7 +4,7 @@ use ::packet::{Type, Header};
 use ::util::{SGString, UUID, PublicKey, Certificate};
 
 use protocol;
-use protocol::{Parcel, DynArray};
+use protocol::Parcel;
 
 #[derive(Debug, Clone)]
 pub struct SimpleHeader {

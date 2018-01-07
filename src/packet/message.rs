@@ -112,7 +112,7 @@ pub enum Message {
 }
 
 impl Parcel for Message {
-        fn read(read: &mut Read) -> Result<Self, protocol::Error> {
+        fn read(_: &mut Read) -> Result<Self, protocol::Error> {
             Err(protocol::Error::from_kind(protocol::ErrorKind::UnknownPacketId))
         }
 
@@ -174,7 +174,7 @@ impl Header for MessageHeader {
         self.protected_payload_length = value;
     }
 
-    fn set_unprotected_payload_length(&mut self, value: u16) {
+    fn set_unprotected_payload_length(&mut self, _: u16) {
         return
     }
 }

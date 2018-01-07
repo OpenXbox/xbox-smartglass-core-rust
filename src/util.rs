@@ -130,8 +130,8 @@ implement_composite_type!(PublicKey { key_type, key });
 
 impl fmt::Debug for PublicKey {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        write!(formatter, "PublicKey {{ key_type: {}", self.key_type);
-        self.key[..].fmt(formatter);
+        write!(formatter, "PublicKey {{ key_type: {}", self.key_type)?;
+        self.key[..].fmt(formatter)?;
         write!(formatter, "}}")
     }
 }
@@ -199,8 +199,8 @@ impl Parcel for Certificate {
 
 impl fmt::Debug for Certificate {
     fn fmt(&self, formatter: &mut fmt::Formatter) -> fmt::Result {
-        write!(formatter, "Certificate {{ subject: {} public_key_type: {} public_key: ", self.subject, self.public_key_type);
-        self.public_key[..].fmt(formatter);
+        write!(formatter, "Certificate {{ subject: {} public_key_type: {} public_key: ", self.subject, self.public_key_type)?;
+        self.public_key[..].fmt(formatter)?;
         write!(formatter, "}}")
     }
 }
