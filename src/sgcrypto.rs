@@ -123,10 +123,10 @@ impl Crypto {
         let mut read_buf = RefReadBuffer::new(plaintext);
         let mut write_buf = RefWriteBuffer::new(ciphertext);
         let mut encryptor = 
-        match plaintext.len() % 16 {
-            0 => aes::cbc_encryptor(KeySize::KeySize128, &self.aes_key, iv, blockmodes::NoPadding),
-            _ => aes::cbc_encryptor(KeySize::KeySize128, &self.aes_key, iv, blockmodes::PkcsPadding)
-        };
+            match plaintext.len() % 16 {
+                0 => aes::cbc_encryptor(KeySize::KeySize128, &self.aes_key, iv, blockmodes::NoPadding),
+                _ => aes::cbc_encryptor(KeySize::KeySize128, &self.aes_key, iv, blockmodes::PkcsPadding)
+            };
         let res = encryptor.encrypt(&mut read_buf, &mut write_buf, true)?;
         match res {
             BufferResult::BufferOverflow => Err(Error::BufferOverflow),
@@ -219,7 +219,7 @@ mod test {
     }
 
     pub fn from_secret(secret: &[u8]) -> Crypto {
-        if (secret.len() != 64) {
+        if secret.len() != 64 {
             panic!("Secret length should be exactly 64-bytes")
         }
 
@@ -256,7 +256,9 @@ mod test {
     }
 
     #[test]
+    #[allow(unused_variables)]
     fn new_crypto_works() {
+        // ensure no panics when creating a new crypto instance
         let crypto = new_crypto();
     }
 
@@ -272,6 +274,7 @@ mod test {
         assert_ne!(ciphertext, &[0xa0u8;16][..]);
     }
 
+    #[test]
     fn encrypt_matches_python() {
         // encrypt 0xDEADBEEF using a known secret and iv
 
@@ -281,9 +284,8 @@ mod test {
         let plaintext = [0xde, 0xad, 0xbe, 0xef, 0x0c, 0x0c, 0x0c, 0x0c, 0x0c, 0x0c, 0x0c, 0x0c, 0x0c, 0x0c, 0x0c, 0x0c];
         // Secret = from python project
         let crypto = from_secret(include_bytes!("test/secret"));
-        let mut ciphertext = vec![0u8, 16];
-        let result = crypto.decrypt(&iv[..], &plaintext[..], &mut ciphertext[..]);
-        assert!(!result.is_err());
+        let mut ciphertext = [0u8;16];
+        result = crypto.encrypt(&iv, &plaintext, &mut ciphertext).unwrap();
         // Expected Ciphertext = result of encrypt in python project
         assert_eq!(ciphertext, [0x64, 0x97, 0x23, 0x2a, 0x0e, 0x4e, 0x74, 0x34, 0x3c, 0x3a, 0x08, 0xb3, 0x68, 0x4b, 0x45, 0xf7])
     }
