@@ -285,7 +285,7 @@ mod test {
         // Secret = from python project
         let crypto = from_secret(include_bytes!("test/secret"));
         let mut ciphertext = [0u8;16];
-        result = crypto.encrypt(&iv, &plaintext, &mut ciphertext).unwrap();
+        crypto.encrypt(&iv, &plaintext, &mut ciphertext).unwrap();
         // Expected Ciphertext = result of encrypt in python project
         assert_eq!(ciphertext, [0x64, 0x97, 0x23, 0x2a, 0x0e, 0x4e, 0x74, 0x34, 0x3c, 0x3a, 0x08, 0xb3, 0x68, 0x4b, 0x45, 0xf7])
     }
