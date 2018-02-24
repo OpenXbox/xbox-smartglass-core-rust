@@ -9,10 +9,11 @@ ring = "0.11.0"
 untrusted = "0.5.0"
 rust-crypto = "0.2.36"
 openssl = "0.9.17"
-protocol = { git = "https://github.com/Kern--/protocol.git", version = "0.3.1", features = ["uuid"] }
+protocol = { version = "0.3.4", features = ["uuid"] }
+protocol-derive = "0.3.4"
 quick-error = "1.2.1"
 bit_field = "0.7.0"
 enum-primitive-derive = "0.1.2"
 num-traits = "0.1"
-uuid = { version = "0.5.1", features = ["use_std"] }
+uuid = "0.6" 
 lazy_static = "0.2.8"

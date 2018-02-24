@@ -219,11 +219,12 @@ impl Parcel for MessageHeaderFlags {
 //     'data' / SGString()
 // ) / StructObj
 
-define_packet!(FragmentData {
-    sequence_begin: u32,
-    sequence_end: u32,
-    data: DynArray<u16, u8>
-});
+#[derive(Protocol, Clone, Debug, PartialEq)]
+pub struct FragmentData {
+    pub sequence_begin: u32,
+    pub sequence_end: u32,
+    pub data: DynArray<u16, u8>
+}
 
 // acknowledge = 'acknowledge' / Struct(
 //     'low_watermark' / Int32ub,
@@ -231,11 +232,12 @@ define_packet!(FragmentData {
 //     'rejected_list' / PrefixedArray(Int32ub, Int32ub)
 // ) / StructObj
 
-define_packet!(AcknowledgeData {
-    low_watermark: u32,
-    processed_list: DynArray<u32, u32>,
-    rejected_list: DynArray<u32, u32>
-});
+#[derive(Protocol, Clone, Debug, PartialEq)]
+pub struct AcknowledgeData {
+    pub low_watermark: u32,
+    pub processed_list: DynArray<u32, u32>,
+    pub rejected_list: DynArray<u32, u32>
+}
 
 // local_join = 'local_join' / Struct(
 //     'device_type' / Int16ub,
@@ -250,18 +252,19 @@ define_packet!(AcknowledgeData {
 //     'display_name' / SGString('utf8')
 // ) / StructObj
 
-define_packet!(LocalJoinData {
-    device_type: u16,
-    native_width: u16,
-    native_height: u16,
-    dpi_x: u16,
-    dpi_y: u16,
-    device_capabilities: u64,
-    client_version: u32,
-    os_major_version: u32,
-    os_minor_version: u32,
-    display_name: SGString
-});
+#[derive(Protocol, Clone, Debug, PartialEq)]
+pub struct LocalJoinData {
+    pub device_type: u16,
+    pub native_width: u16,
+    pub native_height: u16,
+    pub dpi_x: u16,
+    pub dpi_y: u16,
+    pub device_capabilities: u64,
+    pub client_version: u32,
+    pub os_major_version: u32,
+    pub os_minor_version: u32,
+    pub display_name: SGString
+}
 
 // auxiliary_stream = 'auxiliary_stream' / Struct(
 //     'connection_info_flag' / Bytes(1),
@@ -273,15 +276,16 @@ define_packet!(LocalJoinData {
 //     'message' / SGString('utf8')
 // ) / StructObj
 
-define_packet!(AuxiliaryStreamData {
-    connection_info_flag: u8,
-    crypto_key: [u8; 16],
-    server_iv: [u8; 16],
-    client_iv: [u8; 16],
-    sign_hash: [u8; 16],
-    endpoints_size: u16,
-    message: SGString
-});
+#[derive(Protocol, Clone, Debug, PartialEq)]
+pub struct AuxiliaryStreamData {
+    pub connection_info_flag: u8,
+    pub crypto_key: [u8; 16],
+    pub server_iv: [u8; 16],
+    pub client_iv: [u8; 16],
+    pub sign_hash: [u8; 16],
+    pub endpoints_size: u16,
+    pub message: SGString
+}
 
 // active_surface_change = 'active_surface_change' / Struct(
 //     'surface_type' / Int16ub,
@@ -293,23 +297,25 @@ define_packet!(AuxiliaryStreamData {
 //     'master_session_key' / Bytes(0x10)
 // ) / StructObj
 
-define_packet!(ActiveSurfaceChangeData {
-    surface_type: u16,
-    server_tcp_port: u16,
-    server_udp_port: u16,
-    session_id: UUID<u8>,
-    render_width: u16,
-    render_height: u16,
-    master_session_key: [u8; 16]
-});
+#[derive(Protocol, Clone, Debug, PartialEq)]
+pub struct ActiveSurfaceChangeData {
+    pub surface_type: u16,
+    pub server_tcp_port: u16,
+    pub server_udp_port: u16,
+    pub session_id: UUID<u8>,
+    pub render_width: u16,
+    pub render_height: u16,
+    pub master_session_key: [u8; 16]
+}
 
 // json = 'json' / Struct(
 //     'text' / JsonAdapter(SGString('utf8'))
 // ) / StructObj
 
-define_packet!(JsonData {
-    text: SGString
-});
+#[derive(Protocol, Clone, Debug, PartialEq)]
+pub struct JsonData {
+    pub text: SGString
+}
 
 // _active_title = '_active_title' / Struct(
 //     'title_id' / Int32ub,
@@ -329,14 +335,15 @@ define_packet!(JsonData {
 //     'active_titles' / PrefixedArray(Int16ub, _active_title)
 // ) / StructObj
 
-define_packet!(ConsoleStatusData {
-    live_tv_provider: u32,
-    major_version: u32,
-    minor_version: u32,
-    build_number: u32,
-    locale: SGString,
-    active_titles: DynArray<u16, ActiveTitle>
-});
+#[derive(Protocol, Clone, Debug, PartialEq)]
+pub struct ConsoleStatusData {
+    pub live_tv_provider: u32,
+    pub major_version: u32,
+    pub minor_version: u32,
+    pub build_number: u32,
+    pub locale: SGString,
+    pub active_titles: DynArray<u16, ActiveTitle>
+}
 
 define_composite_type!(ActiveTitle {
     title_id: u32,
@@ -356,15 +363,16 @@ define_composite_type!(ActiveTitle {
 //     'prompt' / SGString('utf8')
 // ) / StructObj
 
-define_packet!(TextConfigurationData {
-    session_id: u64,
-    buffer_version: u32,
-    options: u32,
-    input_scope: u32,
-    max_text_len: u32,
-    locale: SGString,
-    prompt: SGString
-});
+#[derive(Protocol, Clone, Debug, PartialEq)]
+pub struct TextConfigurationData {
+    pub session_id: u64,
+    pub buffer_version: u32,
+    pub options: u32,
+    pub input_scope: u32,
+    pub max_text_len: u32,
+    pub locale: SGString,
+    pub prompt: SGString
+}
 
 // title_text_input = 'title_text_input' / Struct(
 //     'text_session_id' / Int64ub,
@@ -373,12 +381,13 @@ define_packet!(TextConfigurationData {
 //     'text' / SGString('utf8')
 // ) / StructObj
 
-define_packet!(TitleTextInputData {
-    session_id: u64,
-    buffer_version: u32,
-    result: u16,
-    text: SGString
-});
+#[derive(Protocol, Clone, Debug, PartialEq)]
+pub struct TitleTextInputData {
+    pub session_id: u64,
+    pub buffer_version: u32,
+    pub result: u16,
+    pub text: SGString
+}
 
 // title_text_selection = 'title_text_selection' / Struct(
 //     'text_session_id' / Int64ub,
@@ -387,22 +396,24 @@ define_packet!(TitleTextInputData {
 //     'length' / Int32ub
 // ) / StructObj
 
-define_packet!(TitleTextSelectionData {
-    session_id: u64,
-    buffer_version: u32,
-    start: u32,
-    length: u32
-});
+#[derive(Protocol, Clone, Debug, PartialEq)]
+pub struct TitleTextSelectionData {
+    pub session_id: u64,
+    pub buffer_version: u32,
+    pub start: u32,
+    pub length: u32
+}
 
 // title_launch = 'title_launch' / Struct(
 //     'location' / Int16ub,
 //     'uri' / SGString()
 // ) / StructObj
 
-define_packet!(TitleLaunchData {
-    location: u16,
-    uri: SGString
-});
+#[derive(Protocol, Clone, Debug, PartialEq)]
+pub struct TitleLaunchData {
+    pub location: u16,
+    pub uri: SGString
+}
 
 // start_channel_request = 'start_channel_request' / Struct(
 //     'channel_request_id' / Int32ub,
@@ -411,12 +422,13 @@ define_packet!(TitleLaunchData {
 //     'activity_id' / Int32ub
 // ) / StructObj
 
-define_packet!(StartChannelRequestData {
-    channel_request_id: u32,
-    title_id: u32,
-    service: UUID<u8>,
-    activity_id: u32
-});
+#[derive(Protocol, Clone, Debug, PartialEq)]
+pub struct StartChannelRequestData {
+    pub channel_request_id: u32,
+    pub title_id: u32,
+    pub service: UUID<u8>,
+    pub activity_id: u32
+}
 
 // start_channel_response = 'start_channel_response' / Struct(
 //     'channel_request_id' / Int32ub,
@@ -424,29 +436,32 @@ define_packet!(StartChannelRequestData {
 //     'result' / Int32ub
 // ) / StructObj
 
-define_packet!(StartChannelResponseData {
-    channel_request_id: u32,
-    target_channel_id: u64,
-    result: u32
-});
+#[derive(Protocol, Clone, Debug, PartialEq)]
+pub struct StartChannelResponseData {
+    pub channel_request_id: u32,
+    pub target_channel_id: u64,
+    pub result: u32
+}
 
 // stop_channel = 'stop_channel' / Struct(
 //     'target_channel_id' / Int64ub
 // ) / StructObj
 
-define_packet!(StopChannelData {
-    target_channel_id: u64
-});
+#[derive(Protocol, Clone, Debug, PartialEq)]
+pub struct StopChannelData {
+    pub target_channel_id: u64
+}
 
 // disconnect = 'disconnect' / Struct(
 //     'reason' / Int32ub,
 //     'error_code' / Int32ub
 // ) / StructObj
 
-define_packet!(DisconnectData {
-    reason: u32,
-    error_code: u32
-});
+#[derive(Protocol, Clone, Debug, PartialEq)]
+pub struct DisconnectData {
+    pub reason: u32,
+    pub error_code: u32
+}
 
 // _touchpoint = '_touchpoint' / Struct(
 //     'touchpoint_id' / Int32ub,
@@ -461,10 +476,11 @@ define_packet!(DisconnectData {
 //     'active_titles' / PrefixedArray(Int16ub, _touchpoint)
 // ) / StructObj
 
-define_packet!(TouchData {
-    timestamp: u32,
-    active_titles: DynArray<u16, Touchpoint>
-});
+#[derive(Protocol, Clone, Debug, PartialEq)]
+pub struct TouchData {
+    pub timestamp: u32,
+    pub active_titles: DynArray<u16, Touchpoint>
+}
 
 define_composite_type!(Touchpoint {
     id: u32,
@@ -480,12 +496,13 @@ define_composite_type!(Touchpoint {
 //     'acceleration_z' / Float32b
 // ) / StructObj
 
-define_packet!(AccelerometerData {
-    timestamp: u64,
-    acceleration_x: f32,
-    acceleration_y: f32,
-    acceleration_z: f32
-});
+#[derive(Protocol, Clone, Debug, PartialEq)]
+pub struct AccelerometerData {
+    pub timestamp: u64,
+    pub acceleration_x: f32,
+    pub acceleration_y: f32,
+    pub acceleration_z: f32
+}
 
 // gyrometer = 'gyrometer' / Struct(
 //     'timestamp' / Int64ub,
@@ -494,12 +511,13 @@ define_packet!(AccelerometerData {
 //     'angular_velocity_z' / Float32b
 // ) / StructObj
 
-define_packet!(GyrometerData {
-    timestamp: u64,
-    angular_velocity_x: f32,
-    angular_velocity_y: f32,
-    angular_velocity_z: f32
-});
+#[derive(Protocol, Clone, Debug, PartialEq)]
+pub struct GyrometerData {
+    pub timestamp: u64,
+    pub angular_velocity_x: f32,
+    pub angular_velocity_y: f32,
+    pub angular_velocity_z: f32
+}
 
 // inclinometer = 'inclinometer' / Struct(
 //     'timestamp' / Int64ub,
@@ -508,12 +526,13 @@ define_packet!(GyrometerData {
 //     'yaw' / Float32b
 // ) / StructObj
 
-define_packet!(InclinometerData {
-    timestamp: u64,
-    pitch: f32,
-    roll: f32,
-    yaw: f32
-});
+#[derive(Protocol, Clone, Debug, PartialEq)]
+pub struct InclinometerData {
+    pub timestamp: u64,
+    pub pitch: f32,
+    pub roll: f32,
+    pub yaw: f32
+}
 
 // compass = 'compass' / Struct(
 //     'timestamp' / Int64ub,
@@ -521,11 +540,12 @@ define_packet!(InclinometerData {
 //     'true_north' / Float32b
 // ) / StructObj
 
-define_packet!(CompassData {
-    timestamp: u64,
-    magnetic_north: f32,
-    true_north: f32
-});
+#[derive(Protocol, Clone, Debug, PartialEq)]
+pub struct CompassData {
+    pub timestamp: u64,
+    pub magnetic_north: f32,
+    pub true_north: f32
+}
 
 // orientation = 'orientation' / Struct(
 //     'timestamp' / Int64ub,
@@ -536,56 +556,62 @@ define_packet!(CompassData {
 //     'z' / Float32b
 // ) / StructObj
 
-define_packet!(OrientationData {
-    timestamp: u64,
-    rotation_matrix_value: u64,
-    w: f32,
-    x: f32,
-    y: f32,
-    z: f32
-});
+#[derive(Protocol, Clone, Debug, PartialEq)]
+pub struct OrientationData {
+    pub timestamp: u64,
+    pub rotation_matrix_value: u64,
+    pub w: f32,
+    pub x: f32,
+    pub y: f32,
+    pub z: f32
+}
 
 // paired_identity_state_changed = 'paired_identity_state_changed' / Struct(
 //     'state' / Int16ub
 // ) / StructObj
 
-define_packet!(PairedIdentityStateChangedData {
-    state: u16  // todo: enumify
-});
+#[derive(Protocol, Clone, Debug, PartialEq)]
+pub struct PairedIdentityStateChangedData {
+    pub state: u16  // todo: enumify
+}
 
 // unsnap = 'unsnap' / Struct(
 //     'unk' / Bytes(1)
 // ) / StructObj
 
-define_packet!(UnsnapData {
-    unk: u8
-});
+#[derive(Protocol, Clone, Debug, PartialEq)]
+pub struct UnsnapData {
+    pub unk: u8
+}
 
 // game_dvr_record = 'game_dvr_record' / Struct(
 //     'start_time_delta' / Int32ub,
 //     'end_time_delta' / Int32ub
 // ) / StructObj
 
-define_packet!(GameDvrRecordData {
-    start_time_delta: u32,
-    end_time_delta: u32
-});
+#[derive(Protocol, Clone, Debug, PartialEq)]
+pub struct GameDvrRecordData {
+    pub start_time_delta: u32,
+    pub end_time_delta: u32
+}
 
 // power_off = 'power_off' / Struct(
 //     'device_id' / SGString('utf8')
 // ) / StructObj
 
-define_packet!(PowerOffData {
-    device_id: SGString
-});
+#[derive(Protocol, Clone, Debug, PartialEq)]
+pub struct PowerOffData {
+    pub device_id: SGString
+}
 
 // media_controller_removed = 'media_controller_removed' / Struct(
 //     'title_id' / Int32ub
 // ) / StructObj
 
-define_packet!(MediaControllerRemovedData {
-    title_id: u32
-});
+#[derive(Protocol, Clone, Debug, PartialEq)]
+pub struct MediaControllerRemovedData {
+    pub title_id: u32
+}
 
 // media_command = 'media_command' / Struct(
 //     'request_id' / Int64ub,
@@ -594,22 +620,24 @@ define_packet!(MediaControllerRemovedData {
 //     'seek_position' / If(this.command == MediaControlCommand.Seek, Int64ub)
 // ) / StructObj
 
-define_packet!(MediaCommandData {
-    request_id: u64,
-    title_id: u32,
-    command: u32  // todo: enumify
+#[derive(Protocol, Clone, Debug, PartialEq)]
+pub struct MediaCommandData {
+    pub request_id: u64,
+    pub title_id: u32,
+    pub command: u32  // todo: enumify
     // todo add seek_position
-});
+}
 
 // media_command_result = 'media_command_result' / Struct(
 //     'request_id' / Int64ub,
 //     'result' / Int32ub
 // ) / StructObj
 
-define_packet!(MediaCommandResultData {
-    request_id: u64,
-    result: u32
-});
+#[derive(Protocol, Clone, Debug, PartialEq)]
+pub struct MediaCommandResultData {
+    pub request_id: u64,
+    pub result: u32
+}
 
 // media_state = 'media_state' / Struct(
 //     'title_id' / Int32ub,
@@ -631,22 +659,23 @@ define_packet!(MediaCommandResultData {
 //     ))
 // ) / StructObj
 
-define_packet!(MediaStateData {
-    title_id: u32,
-    aum_id: SGString,
-    asset_id: SGString,
-    media_type: u16,
-    sound_level: u16,
-    enabled_commands: u32,
-    playback_status: u16,
-    rate: f32,
-    position: u64,
-    media_start: u64,
-    media_end: u64,
-    min_seek: u64,
-    max_seek: u64,
-    metadata: DynArray<u16, MediaStateMetadata>
-});
+#[derive(Protocol, Clone, Debug, PartialEq)]
+pub struct MediaStateData {
+    pub title_id: u32,
+    pub aum_id: SGString,
+    pub asset_id: SGString,
+    pub media_type: u16,
+    pub sound_level: u16,
+    pub enabled_commands: u32,
+    pub playback_status: u16,
+    pub rate: f32,
+    pub position: u64,
+    pub media_start: u64,
+    pub media_end: u64,
+    pub min_seek: u64,
+    pub max_seek: u64,
+    pub metadata: DynArray<u16, MediaStateMetadata>
+}
 
 define_composite_type!(MediaStateMetadata {
     name: SGString,
@@ -664,16 +693,17 @@ define_composite_type!(MediaStateMetadata {
 //     'right_thumbstick_y' / Float32b
 // ) / StructObj
 
-define_packet!(GamepadData {
-    timestamp: u64,
-    buttons: u16,  // todo: bitfield or something
-    left_trigger: f32,
-    right_trigger: f32,
-    left_thumbstick_x: f32,
-    left_thumbstick_y: f32,
-    right_thumbstick_x: f32,
-    right_thumbstick_y: f32
-});
+#[derive(Protocol, Clone, Debug, PartialEq)]
+pub struct GamepadData {
+    pub timestamp: u64,
+    pub buttons: u16,  // todo: bitfield or something
+    pub left_trigger: f32,
+    pub right_trigger: f32,
+    pub left_thumbstick_x: f32,
+    pub left_thumbstick_y: f32,
+    pub right_thumbstick_x: f32,
+    pub right_thumbstick_y: f32
+}
 
 // system_text_input = 'system_text_input' / Struct(
 //     'text_session_id' / Int32ub,
@@ -688,27 +718,29 @@ define_packet!(GamepadData {
 //     'text_chunk' / SGString('utf8')
 // ) / StructObj
 
-define_packet!(SystemTextInputData {
-    session_id: u32,
-    base_version: u32,
-    submitted_version: u32,
-    total_text_byte_len: u32,
-    selection_start: u32,
-    selection_end: u32,
-    flags: u16,
-    text_chunk_byte_start: u32,
-    text_chunk: SGString
-});
+#[derive(Protocol, Clone, Debug, PartialEq)]
+pub struct SystemTextInputData {
+    pub session_id: u32,
+    pub base_version: u32,
+    pub submitted_version: u32,
+    pub total_text_byte_len: u32,
+    pub selection_start: u32,
+    pub selection_end: u32,
+    pub flags: u16,
+    pub text_chunk_byte_start: u32,
+    pub text_chunk: SGString
+}
 
 // system_text_acknowledge = 'system_text_acknowledge' / Struct(
 //     'text_session_id' / Int32ub,
 //     'text_version_ack' / Int32ub
 // ) / StructObj
 
-define_packet!(SystemTextAcknowledgeData {
-    session_id: u32,
-    version_ack: u32
-});
+#[derive(Protocol, Clone, Debug, PartialEq)]
+pub struct SystemTextAcknowledgeData {
+    pub session_id: u32,
+    pub version_ack: u32
+}
 
 // system_text_done = 'system_text_done' / Struct(
 //     'text_session_id' / Int32ub,
@@ -717,9 +749,10 @@ define_packet!(SystemTextAcknowledgeData {
 //     'unk' / Int32ub
 // ) / StructObj
 
-define_packet!(SystemTextDoneData {
-    session_id: u32,
-    version: u32,
-    flags: u32,
-    unk: u32
-});
+#[derive(Protocol, Clone, Debug, PartialEq)]
+pub struct SystemTextDoneData {
+    pub session_id: u32,
+    pub version: u32,
+    pub flags: u32,
+    pub unk: u32
+}

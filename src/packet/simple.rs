@@ -60,47 +60,54 @@ impl Header for SimpleHeader {
 }
 
 // Data definitions. The define_packet macro implements Parcel for us on structs.
-define_packet!(DiscoveryRequestData {
-    flags: u32,
-    client_type: u16,  // todo: enumify
-    minimum_version: u16,
-    maximum_version: u16
-});
+#[derive(Protocol, Clone, Debug, PartialEq)]
+pub struct DiscoveryRequestData {
+    pub flags: u32,
+    pub client_type: u16,  // todo: enumify
+    pub minimum_version: u16,
+    pub maximum_version: u16
+}
 
-define_packet!(DiscoveryResponseData {
-    flags: u32,
-    client_type: u16,  // todo: enumify
-    name: SGString,
-    uuid: UUID<String>,
-    padding: [u8; 5],
-    certificate: Certificate
-});
+#[derive(Protocol, Clone, Debug, PartialEq)]
+pub struct DiscoveryResponseData {
+    pub flags: u32,
+    pub client_type: u16,  // todo: enumify
+    pub name: SGString,
+    pub uuid: UUID<String>,
+    pub padding: [u8; 5],
+    pub certificate: Certificate
+}
 
 // We don't have test data for this
-define_packet!(PowerOnRequestData {
-    live_id: SGString
-});
+#[derive(Protocol, Clone, Debug, PartialEq)]
+pub struct PowerOnRequestData {
+    pub live_id: SGString
+}
 
-define_packet!(ConnectRequestUnprotectedData {
-    sg_uuid: UUID<u8>,
-    public_key: PublicKey,
-    iv: [u8;16]
-});
+#[derive(Protocol, Clone, Debug, PartialEq)]
+pub struct ConnectRequestUnprotectedData {
+    pub sg_uuid: UUID<u8>,
+    pub public_key: PublicKey,
+    pub iv: [u8;16]
+}
 
-define_packet!(ConnectRequestProtectedData {
-    userhash: SGString,
-    jwt: SGString,
-    request_num: u32,
-    request_group_start: u32,
-    request_group_end: u32
-});
+#[derive(Protocol, Clone, Debug, PartialEq)]
+pub struct ConnectRequestProtectedData {
+    pub userhash: SGString,
+    pub jwt: SGString,
+    pub request_num: u32,
+    pub request_group_start: u32,
+    pub request_group_end: u32
+}
 
-define_packet!(ConnectResponseUnprotectedData {
-    iv: [u8;16]
-});
+#[derive(Protocol, Clone, Debug, PartialEq)]
+pub struct ConnectResponseUnprotectedData {
+    pub iv: [u8;16]
+}
 
-define_packet!(ConnectResponseProtectedData {
-    connect_request: u16,
-    pairing_state: u16,
-    participant_id: u32
-});
+#[derive(Protocol, Clone, Debug, PartialEq)]
+pub struct ConnectResponseProtectedData {
+    pub connect_request: u16,
+    pub pairing_state: u16,
+    pub participant_id: u32
+}
