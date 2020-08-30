@@ -1,19 +1,19 @@
 [package]
 name = "xbox-sg"
 version = "0.1.0"
-authors = ["Kern <kern.walster@gmail.com>"]
+authors = ["Kern <noreply@openxbox.org>"]
 
 [dependencies]
 rustc-serialize = "0.3.24"
-ring = "0.11.0"
-untrusted = "0.5.0"
+ring = "0.16.15"
+untrusted = "0.7.1"
 rust-crypto = "0.2.36"
-openssl = "0.9.17"
-protocol = { version = "0.3.4", features = ["uuid"] }
-protocol-derive = "0.3.4"
-quick-error = "1.2.1"
-bit_field = "0.7.0"
-enum-primitive-derive = "0.1.2"
-num-traits = "0.1"
-uuid = "0.6" 
-lazy_static = "0.2.8"
+openssl = "0.10.30"
+protocol = { version = "3.1.7", features = ["uuid"] }
+protocol-derive = "3.1.7"
+quick-error = "2.0.0"
+bit_field = "0.10.1"
+enum-primitive-derive = "0.2.1"
+num-traits = "0.2.12"
+uuid = "0.8.1"
+lazy_static = "1.4.0"
